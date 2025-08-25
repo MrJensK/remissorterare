@@ -1,0 +1,54 @@
+# Loggfiler
+*.log
+scheduled_run_*.log
+
+# Temporära filer
+*.tmp
+*.temp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtuella miljöer
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# IDE-filer
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-filer
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Input/Output-mappar (kan innehålla känslig data)
+input/
+output/
+test_input/
+test_output/
+
+# E-postkonfiguration
+.env
+config.env
+
+# Backup-filer
+*.bak
+*.backup
+*.old
+
+# Testfiler
+test_*.pdf
+test_*.dat
+
+# Dokumentation
+docs/_build/
