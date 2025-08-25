@@ -1,0 +1,50 @@
+name: Test Remissorterare
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Tesseract
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tesseract-ocr tesseract-ocr-swe
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        python test_remissorterare.py
+    
+    - name: Test ML model
+      run: |
+        python -c "
+        from ml_verksamhetsidentifierare import MLVerksamhetsIdentifierare
+        identifierare = MLVerksamhetsIdentifierare()
+        accuracy = identifierare.träna_modell()
+        print(f'ML model accuracy: {accuracy:.3f}')
+        assert accuracy > 0.5, 'ML model accuracy too low'
+        "
+    
+    - name: Test web app imports
+      run: |
+        python -c "
+        import web_app
+        print('Web app imports successfully')
+        "
