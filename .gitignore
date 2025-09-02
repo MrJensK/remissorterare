@@ -49,6 +49,9 @@ config.env
 # Testfiler
 test_*.pdf
 test_*.dat
+*.pdf
+*.dat
+
 
 # Dokumentation
 docs/_build/

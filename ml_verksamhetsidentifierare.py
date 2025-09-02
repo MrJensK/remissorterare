@@ -126,6 +126,45 @@ class MLVerksamhetsIdentifierare:
         
         return accuracy
     
+    def träna_med_anpassad_data(self, texter: List[str], verksamheter: List[str]):
+        """
+        Tränar modellen med anpassad data (t.ex. från omfördelningsprocesser)
+        
+        Args:
+            texter: Lista med texter att träna på
+            verksamheter: Motsvarande verksamheter för texterna
+        """
+        if not texter or not verksamheter or len(texter) != len(verksamheter):
+            logger.error("Ogiltig träningsdata")
+            return
+        
+        logger.info(f"Tränar modell med {len(texter)} anpassade texter")
+        
+        try:
+            # Skapa pipeline om den inte finns
+            if self.pipeline is None:
+                self.skapa_pipeline()
+            
+            # Kombinera befintlig träningsdata med ny data
+            befintliga_texter, befintliga_verksamheter = self.förbereda_träningsdata()
+            
+            # Lägg till den nya datan
+            alla_texter = befintliga_texter + texter
+            alla_verksamheter = befintliga_verksamheter + verksamheter
+            
+            # Träna modellen
+            self.pipeline.fit(alla_texter, alla_verksamheter)
+            self.trained = True
+            
+            # Spara den uppdaterade modellen
+            self.spara_modell()
+            
+            logger.info("Modell tränad och sparad med anpassad data")
+            
+        except Exception as e:
+            logger.error(f"Fel vid träning med anpassad data: {e}")
+            raise
+    
     def identifiera_verksamhet(self, text: str) -> Tuple[str, float]:
         """
         Identifierar verksamhet med ML-modell

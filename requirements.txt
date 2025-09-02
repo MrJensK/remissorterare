@@ -9,3 +9,9 @@ joblib==1.3.2
 Flask==2.3.3
 Flask-SocketIO==5.3.6
 Werkzeug==2.3.7
+# OpenAI (valfritt - endast om du vill använda OpenAI)
+# openai>=1.0.0
+# Lokala AI-modeller
+transformers>=4.30.0
+torch>=2.0.0
+sentence-transformers>=2.2.0

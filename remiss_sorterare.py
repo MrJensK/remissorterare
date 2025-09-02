@@ -22,6 +22,9 @@ import numpy as np
 from dateutil import parser
 from config import *
 from ml_verksamhetsidentifierare import MLVerksamhetsIdentifierare
+from ai_verksamhetsidentifierare import AIVerksamhetsIdentifierare
+from lokal_ai_verksamhetsidentifierare import LokalAIVerksamhetsIdentifierare
+from ai_config import *
 
 # Konfigurera logging
 logging.basicConfig(
@@ -37,26 +40,39 @@ logger = logging.getLogger(__name__)
 class RemissSorterare:
     """Huvudklass för remissortering"""
     
-    def __init__(self, input_mapp: str = INPUT_MAPP, output_mapp: str = OUTPUT_MAPP):
-        """
-        Initierar remissorteraren
-        
-        Args:
-            input_mapp: Mapp med inkommande PDF-filer
-            output_mapp: Rotmapp för sorterade filer
-        """
-        self.input_mapp = Path(input_mapp)
-        self.output_mapp = Path(output_mapp)
-        self.osakert_mapp = self.output_mapp / OSAKERT_MAPP
-        
-        # Verksamheter och nyckelord från config
-        self.verksamheter = VERKSAMHETER
+    def __init__(self):
+        """Initierar RemissSorterare"""
+        self.input_mapp = Path(INPUT_MAPP)
+        self.output_mapp = Path(OUTPUT_MAPP)
+        self.osakert_mapp = Path(OUTPUT_MAPP) / OSAKERT_MAPP
         
         # Skapa nödvändiga mappar
-        self._skapa_mappar()
+        self.output_mapp.mkdir(exist_ok=True)
+        self.osakert_mapp.mkdir(exist_ok=True)
         
-        # ML-identifierare
+        # Skapa mappar för varje verksamhet
+        for verksamhet in VERKSAMHETER.keys():
+            (self.output_mapp / verksamhet).mkdir(exist_ok=True)
+        
+        # Initiera identifierare
+        self.verksamheter = VERKSAMHETER
         self.ml_identifierare = MLVerksamhetsIdentifierare()
+        
+        # Initiera AI-identifierare baserat på konfiguration
+        if AI_TYPE == "openai":
+            self.ai_identifierare = AIVerksamhetsIdentifierare()
+            logger.info("Använder OpenAI AI-identifierare")
+        elif AI_TYPE == "lokal":
+            self.ai_identifierare = LokalAIVerksamhetsIdentifierare(LOKAL_AI_MODEL)
+            logger.info(f"Använder lokal AI-identifierare: {LOKAL_AI_MODEL}")
+        else:
+            self.ai_identifierare = None
+            logger.warning("Ingen AI-identifierare konfigurerad")
+        
+        # Konfigurera OCR
+        pytesseract.pytesseract.tesseract_cmd = 'tesseract'
+        
+        logger.info("RemissSorterare initialiserad")
     
     def _skapa_mappar(self):
         """Skapar nödvändiga mappar för programmet"""
@@ -159,22 +175,19 @@ class RemissSorterare:
     def hitta_personnummer(self, text: str) -> Optional[str]:
         """
         Hittar personnummer i texten
-        
         Args:
             text: Text att söka i
-            
         Returns:
             Personnummer eller None
         """
-        # Mönster för svenska personnummer (ÅÅÅÅMMDD-XXXX)
-        pattern = r'\b(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])-\d{4}\b'
-        match = re.search(pattern, text)
-        
+        # Matcha t.ex. '19850415-1234', '198504151234', '19 850415-1234', '20 990101-5678'
+        regex = r'((?:19|20)[ ]?\d{6}-?\d{4})'
+        match = re.search(regex, text)
         if match:
-            personnummer = match.group()
+            # Ta bort eventuellt mellanslag mellan seklet och resten
+            personnummer = match.group(1).replace(' ', '')
             logger.info(f"Hittade personnummer: {personnummer}")
             return personnummer
-        
         logger.warning("Inget personnummer hittades")
         return None
     
@@ -224,42 +237,140 @@ class RemissSorterare:
     
     def identifiera_verksamhet(self, text: str) -> Tuple[str, float]:
         """
-        Identifierar verksamhet med ML-modell eller fallback till nyckelord
+        Identifierar verksamhet med AI som primär metod och fallback till andra metoder
         
         Args:
             text: Text att analysera
-            
+        
         Returns:
             Tuple med (verksamhet, sannolikhet)
         """
-        # Försök med ML-identifierare först
+        text_lower = text.lower()
+        
+        # 1. AI-baserad identifiering (primär metod)
+        if self.ai_identifierare:
+            try:
+                verksamhet, sannolikhet = self.ai_identifierare.identifiera_verksamhet(text)
+                if verksamhet != "Okänd" and sannolikhet > 70:
+                    logger.info(f"AI-identifiering: {verksamhet} (sannolikhet: {sannolikhet:.1f}%)")
+                    return verksamhet, sannolikhet
+                else:
+                    logger.info("AI-identifiering gav låg sannolikhet, använder fallback")
+            except Exception as e:
+                logger.warning(f"AI-identifiering misslyckades, använder fallback: {e}")
+        
+        # 2. Sök efter mottagare/remissadress (INTE avsändare)
+        mottagarfraser = [
+            "remiss till", "remitteras till", "mottagare:", "mottagande verksamhet:", 
+            "mottagande avdelning:", "remissadress:", "till:", "för:", "till verksamhet:",
+            "till avdelning:", "till klinik:", "till mottagare:", "till specialist:",
+            "remitteras till", "skickas till", "överlämnas till", "överförs till"
+        ]
+        
+        # Sök efter mottagare i hela texten
+        for fras in mottagarfraser:
+            idx = text_lower.find(fras)
+            if idx != -1:
+                # Ta ut text efter frasen (längre kontext)
+                efter = text_lower[idx:idx+200]
+                logger.info(f"Hittade mottagarfras: '{fras}' - analyserar: {efter[:100]}...")
+                
+                # Sök efter verksamheter i mottagartexten
+                for verksamhet, nyckelord in self.verksamheter.items():
+                    for nyckel in nyckelord:
+                        if nyckel.lower() in efter:
+                            logger.info(f"Mottagarmatch: {verksamhet} via '{fras}' och '{nyckel}'")
+                            return verksamhet, 95.0
+        
+        # 3. Sök efter specifika mottagarkliniker/avdelningar
+        mottagarkliniker = {
+            "Ortopedi": ["ortopedklinik", "ortopedkliniken", "ortopedavdelning", "ortopedavdelningen"],
+            "Kirurgi": ["kirurgklinik", "kirurgkliniken", "kirurgavdelning", "kirurgavdelningen"],
+            "Kardiologi": ["kardioklinik", "kardiokliniken", "kardioavdelning", "kardioavdelningen"],
+            "Neurologi": ["neurologklinik", "neurologkliniken", "neurologavdelning", "neurologavdelningen"],
+            "Gastroenterologi": ["gastroklinik", "gastrokliniken", "gastroavdelning", "gastroavdelningen"],
+            "Endokrinologi": ["endokrinklinik", "endokrinkliniken", "endokrinavdelning", "endokrinavdelningen"],
+            "Dermatologi": ["dermaklinik", "dermakliniken", "dermaavdelning", "dermaavdelningen"],
+            "Urologi": ["uroklinik", "urokliniken", "uroavdelning", "uroavdelningen"],
+            "Gynekologi": ["gynekoklinik", "gynekokliniken", "gynekoavdelning", "gynekoavdelningen"],
+            "Oftalmologi": ["ögonklinik", "ögonkliniken", "ögonavdelning", "ögonavdelningen"],
+            "Otorinolaryngologi": ["ent-klinik", "ent-kliniken", "ent-avdelning", "ent-avdelningen"]
+        }
+        
+        for verksamhet, kliniker in mottagarkliniker.items():
+            for klinik in kliniker:
+                if klinik in text_lower:
+                    logger.info(f"Klinikmatch: {verksamhet} via '{klinik}'")
+                    return verksamhet, 90.0
+        
+        # 4. Försök med ML-identifierare
         try:
             verksamhet, sannolikhet = self.ml_identifierare.identifiera_verksamhet(text)
-            return verksamhet, sannolikhet
+            if sannolikhet > 70:  # Högre tröskel för ML
+                logger.info(f"ML-match: {verksamhet} (sannolikhet: {sannolikhet:.1f}%)")
+                return verksamhet, sannolikhet
         except Exception as e:
             logger.warning(f"ML-identifiering misslyckades, använder fallback: {e}")
         
-        # Fallback till original nyckelordsbaserad metod
-        text_lower = text.lower()
+        # 5. Förbättrad fallback: Analysera hela texten med kontextbaserad poängsättning
         bästa_verksamhet = "Okänd"
         högsta_poäng = 0
         
+        # Skapa en mer intelligent poängsättning
         for verksamhet, nyckelord in self.verksamheter.items():
             poäng = 0
             total_nyckelord = len(nyckelord)
             
+            # Räkna förekomster av varje nyckelord
             for nyckel in nyckelord:
-                if nyckel.lower() in text_lower:
-                    poäng += 1
+                antal = text_lower.count(nyckel.lower())
+                if antal > 0:
+                    # Ge högre poäng för fler förekomster
+                    poäng += antal * 2
+                    
+                    # Ge extra poäng om nyckelordet finns nära mottagarfraser
+                    for fras in mottagarfraser:
+                        if fras in text_lower:
+                            fras_idx = text_lower.find(fras)
+                            nyckel_idx = text_lower.find(nyckel.lower())
+                            if abs(fras_idx - nyckel_idx) < 100:  # Nära varandra
+                                poäng += 10  # Öka från 5 till 10
+                    
+                    # Ge extra poäng för specifika gynekologiska termer
+                    if verksamhet == "Gynekologi":
+                        gynekologiska_termer = ["livmoder", "äggstockar", "menstruation", "menopaus", "endometrios", 
+                                              "myom", "cervix", "ovariell", "mammografi", "bröst", "graviditet", 
+                                              "förlossning", "uterus", "ovarium"]
+                        for term in gynekologiska_termer:
+                            if term in text_lower:
+                                poäng += 15  # Extra poäng för specifika gynekologiska termer
+                    
+                    # Ge extra poäng för specifika kirurgiska termer
+                    if verksamhet == "Kirurgi":
+                        kirurgiska_termer = ["operation", "operera", "kirurgisk", "snitt", "laparoskopi", 
+                                           "endoskopi", "biopsi", "appendicit", "gallsten", "hernia", 
+                                           "bråck", "polyp", "cholecystektomi", "appendektomi"]
+                        for term in kirurgiska_termer:
+                            if term in text_lower:
+                                poäng += 15  # Extra poäng för specifika kirurgiska termer
             
-            # Beräkna sannolikhet som procent
-            sannolikhet = (poäng / total_nyckelord) * 100
+            # Normalisera poäng - använd en mer balanserad formel
+            sannolikhet = min(100, (poäng / total_nyckelord) * 15)  # Minska från 20 till 15
+            
+            # Logga detaljerad information för debugging
+            logger.debug(f"Verksamhet: {verksamhet}, Poäng: {poäng}, Sannolikhet: {sannolikhet:.1f}%")
             
             if sannolikhet > högsta_poäng:
                 högsta_poäng = sannolikhet
                 bästa_verksamhet = verksamhet
         
         logger.info(f"Fallback identifiering: {bästa_verksamhet} (sannolikhet: {högsta_poäng:.1f}%)")
+        
+        # Om sannolikheten är för låg, returnera "osakert"
+        if högsta_poäng < 30:
+            logger.info("Sannolikhet för låg, returnerar 'osakert'")
+            return "osakert", högsta_poäng
+        
         return bästa_verksamhet, högsta_poäng
     
     def skapa_dat_fil(self, verksamhet: str, personnummer: str, remissdatum: str, 
@@ -358,17 +469,162 @@ class RemissSorterare:
             return
         
         logger.info(f"Hittade {len(pdf_filer)} PDF-filer att bearbeta")
-        
         lyckade = 0
         misslyckade = 0
-        
+
         for pdf_fil in pdf_filer:
             if self.bearbeta_pdf(pdf_fil):
                 lyckade += 1
             else:
                 misslyckade += 1
-        
+
         logger.info(f"Bearbetning slutförd: {lyckade} lyckade, {misslyckade} misslyckade")
+
+    def omfördela_remiss(self, pdf_namn: str, ny_verksamhet: str) -> bool:
+        """
+        Omdirigerar en remiss från osakert till rätt verksamhet
+        
+        Args:
+            pdf_namn: Namn på PDF-filen att omfördela
+            ny_verksamhet: Verksamhet att flytta till
+            
+        Returns:
+            True om omfördelningsprocessen lyckades, False annars
+        """
+        try:
+            # Hitta PDF-filen i osakert-mappen
+            osakert_pdf = self.osakert_mapp / pdf_namn
+            if not osakert_pdf.exists():
+                logger.error(f"PDF-fil hittades inte i osakert: {pdf_namn}")
+                return False
+            
+            # Skapa mål-mapp för ny verksamhet
+            mål_mapp = self.output_mapp / ny_verksamhet
+            mål_mapp.mkdir(exist_ok=True)
+            
+            # Flytta PDF-filen
+            mål_pdf = mål_mapp / pdf_namn
+            shutil.move(str(osakert_pdf), str(mål_pdf))
+            logger.info(f"Flyttade PDF från osakert till {ny_verksamhet}: {pdf_namn}")
+            
+            # Hitta och flytta motsvarande .dat-fil om den finns
+            dat_namn = pdf_namn.replace('.pdf', '.dat')
+            osakert_dat = self.osakert_mapp / dat_namn
+            if osakert_dat.exists():
+                mål_dat = mål_mapp / dat_namn
+                shutil.move(str(osakert_dat), str(mål_dat))
+                logger.info(f"Flyttade .dat-fil från osakert till {ny_verksamhet}: {dat_namn}")
+            
+            # Uppdatera .dat-filen med rätt verksamhet
+            if mål_dat.exists():
+                self.uppdatera_dat_fil_verksamhet(mål_dat, ny_verksamhet)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Fel vid omfördelningsprocessen: {e}")
+            return False
+    
+    def uppdatera_dat_fil_verksamhet(self, dat_sokvag: Path, ny_verksamhet: str):
+        """
+        Uppdaterar verksamheten i en .dat-fil
+        
+        Args:
+            dat_sokvag: Sökväg till .dat-filen
+            ny_verksamhet: Ny verksamhet att sätta
+        """
+        try:
+            # Läs befintlig innehåll
+            with open(dat_sokvag, 'r', encoding='utf-8') as f:
+                rader = f.readlines()
+            
+            # Uppdatera verksamhetsraden
+            for i, rad in enumerate(rader):
+                if rad.startswith("Verksamhet:"):
+                    rader[i] = f"Verksamhet: {ny_verksamhet}\n"
+                    break
+            
+            # Skriv tillbaka uppdaterat innehåll
+            with open(dat_sokvag, 'w', encoding='utf-8') as f:
+                f.writelines(rader)
+            
+            logger.info(f"Uppdaterade verksamhet i {dat_sokvag} till: {ny_verksamhet}")
+            
+        except Exception as e:
+            logger.error(f"Fel vid uppdatering av .dat-fil: {e}")
+    
+    def lista_osakert_remisser(self) -> List[Dict]:
+        """
+        Listar alla remisser i osakert-mappen med information
+        
+        Returns:
+            Lista med dictionaries innehållande remissinformation
+        """
+        osakert_remisser = []
+        
+        if not self.osakert_mapp.exists():
+            return osakert_remisser
+        
+        for pdf_fil in self.osakert_mapp.glob("*.pdf"):
+            remiss_info = {
+                "pdf_namn": pdf_fil.name,
+                "storlek": pdf_fil.stat().st_size,
+                "skapad": datetime.fromtimestamp(pdf_fil.stat().st_ctime).strftime('%Y-%m-%d %H:%M:%S'),
+                "dat_fil": None
+            }
+            
+            # Kolla om det finns motsvarande .dat-fil
+            dat_fil = pdf_fil.with_suffix('.dat')
+            if dat_fil.exists():
+                try:
+                    with open(dat_fil, 'r', encoding='utf-8') as f:
+                        innehåll = f.read()
+                        remiss_info["dat_fil"] = innehåll
+                except Exception as e:
+                    logger.warning(f"Kunde inte läsa .dat-fil: {e}")
+            
+            osakert_remisser.append(remiss_info)
+        
+        return osakert_remisser
+    
+    def träna_ml_med_omfördelningsdata(self, omfördelningsdata: List[Tuple[str, str]]):
+        """
+        Tränar ML-modellen med data från manuella omfördelningsprocesser
+        
+        Args:
+            omfördelningsdata: Lista med (pdf_namn, rätt_verksamhet) tuples
+        """
+        try:
+            logger.info(f"Tränar ML-modell med {len(omfördelningsdata)} omfördelningsdata")
+            
+            # Samla in text från omfördelningsdata
+            texter = []
+            verksamheter = []
+            
+            for pdf_namn, rätt_verksamhet in omfördelningsdata:
+                # Hitta PDF-filen i rätt verksamhetsmapp
+                verksamhets_mapp = self.output_mapp / rätt_verksamhet
+                pdf_sokvag = verksamhets_mapp / pdf_namn
+                
+                if pdf_sokvag.exists():
+                    # Bearbeta PDF för att få text
+                    bilder = self.pdf_till_bilder(pdf_sokvag)
+                    if bilder:
+                        text = self.extrahera_text_med_ocr(bilder)
+                        if text.strip():
+                            texter.append(text)
+                            verksamheter.append(rätt_verksamhet)
+                            logger.info(f"Lade till träningsdata: {pdf_namn} -> {rätt_verksamhet}")
+            
+            # Träna ML-modellen med den nya datan
+            if texter:
+                self.ml_identifierare.träna_med_anpassad_data(texter, verksamheter)
+                logger.info("ML-modell tränad med omfördelningsdata")
+            else:
+                logger.warning("Ingen text kunde extraheras från omfördelningsdata")
+                
+        except Exception as e:
+            logger.error(f"Fel vid träning med omfördelningsdata: {e}")
 
 
 def main():

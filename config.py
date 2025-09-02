@@ -22,7 +22,14 @@ VERKSAMHETER = {
         "kirurgi", "kirurgisk", "operation", "operera", "kirurg", "snitt",
         "laparoskopi", "endoskopi", "biopsi", "tumör", "cancer", "malign",
         "benign", "appendicit", "gallsten", "hernia", "bråck", "polyp",
-        "cholecystektomi", "appendektomi", "mastectomi", "prostatektomi"
+        "cholecystektomi", "appendektomi", "mastectomi", "prostatektomi",
+        "gastrektomi", "kolonresektion", "leversektion", "pankreatektomi",
+        "splenektomi", "adrenalektomi", "thyreoidektomi", "parathyreoidektomi",
+        "tracheostomi", "gastrostomi", "jejunostomi", "kolostomi", "ileostomi",
+        "urostomi", "nephrektomi", "cystektomi", "prostatektomi", "penektomi",
+        "amputation", "replantation", "transplantation", "bypass", "stent",
+        "angioplasti", "endarterektomi", "aneurysm", "varicer", "trombos",
+        "emboli", "ischemi", "nekros", "gangrän", "abscess", "fistel"
     ],
     "Kardiologi": [
         "kardiologi", "kardiologisk", "hjärta", "hjärt", "kardiak", "arytmi",
@@ -63,7 +70,15 @@ VERKSAMHETER = {
     "Gynekologi": [
         "gynekologi", "gynekologisk", "gynekolog", "livmoder", "äggstockar",
         "menstruation", "menopaus", "endometrios", "myom", "cervix",
-        "ovariell", "mammografi", "bröst", "graviditet", "förlossning"
+        "ovariell", "mammografi", "bröst", "graviditet", "förlossning",
+        "uterus", "ovarium", "endometrium", "myometrium", "cervixcancer",
+        "bröstcancer", "ovariecancer", "endometrioscancer", "fibrom",
+        "cysta", "polycystiskt ovariesyndrom", "pcos", "infertilitet",
+        "assisterad befruktning", "ivf", "insemination", "äggdonation",
+        "spermadonation", "premenstruellt syndrom", "pms", "dysmenorré",
+        "amenorré", "metrorragi", "menorragi", "dyspareuni", "vaginism",
+        "vulvodyni", "vulvovaginit", "bakteriell vaginos", "candida",
+        "könssjukdomar", "könssjukdom", "std", "könssjukdomar"
     ],
     "Oftalmologi": [
         "oftalmologi", "oftalmologisk", "öga", "ögon", "syn", "katarakt",
@@ -85,3 +100,10 @@ OSAKERT_MAPP = "osakert"
 # Loggningsinställningar
 LOG_FIL = "remiss_sorterare.log"
 LOG_NIVÅ = "INFO"
+
+# AI-inställningar
+AI_ENABLED = True
+AI_MODEL = "gpt-3.5-turbo"
+AI_TEMPERATURE = 0.1
+AI_MAX_TOKENS = 200
+AI_CONFIDENCE_THRESHOLD = 70  # Minsta sannolikhet för att använda AI-resultat

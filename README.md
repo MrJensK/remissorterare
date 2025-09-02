@@ -1,51 +1,110 @@
 # Remissorterare
 
-Ett Python-program för automatisk hantering av inscannade remisser (PDF:er) och förberedelse av data för import i andra system.
+Ett avancerat Python-program för automatisk hantering av inscannade remisser (PDF:er) med AI-driven verksamhetsidentifiering och förberedelse av data för import i andra system.
 
-## Funktioner
+## 🚀 Funktioner
 
 - **OCR-bearbetning**: Konverterar bildbaserade PDF:er till text med hjälp av Tesseract OCR
+- **AI-driven analys**: Intelligent verksamhetsidentifiering med OpenAI eller lokala AI-modeller
 - **Machine Learning**: Förbättrad verksamhetsidentifiering med TF-IDF och Random Forest
-- **Web-baserat gränssnitt**: Modern drag-and-drop interface med realtidsstatus
-- **Automatisk sortering**: Identifierar verksamhet med högre precision
+- **Web-baserat gränssnitt**: Modern drag-and-drop interface med realtidsstatus och statistik
+- **Automatisk sortering**: Identifierar verksamhet med hög precision och kontextbaserad analys
 - **Datautläsning**: Extraherar personnummer och remissdatum
-- **Intelligent beslutslogik**: Sorterar remisser baserat på sannolikhetspoäng
+- **Intelligent beslutslogik**: Sorterar remisser baserat på sannolikhetspoäng och AI-analys
 - **Strukturerad output**: Skapar .dat-filer för import i Sälma
 - **Realtidsuppdateringar**: WebSocket-baserad kommunikation
 - **Statistik och rapportering**: Visar bearbetningsstatistik i realtid
+- **Omdirigering av osäkra remisser**: Möjlighet att manuellt omfördela och träna modellen
+- **Debug-verktyg**: Steg-för-steg analys av verksamhetsidentifiering
+- **Lokal AI-stöd**: Kör AI-modeller direkt på din maskin utan internetanslutning
 
-## Installation
+## 🛠️ Installation
 
-### Förutsättningar
+### Snabbinstallation
+
+```bash
+# Klona eller ladda ner projektet
+cd remissorterare
+
+# Gör installationsskriptet körbart
+chmod +x install_local_ai.sh
+
+# Kör installationsskriptet
+./install_local_ai.sh
+```
+
+### Manuell installation
+
+#### Förutsättningar
 
 1. **Python 3.8 eller senare**
 2. **Tesseract OCR** (krävs för textigenkänning)
 
-### Installera Tesseract
+#### Installera Tesseract
 
-#### macOS:
+**macOS:**
 ```bash
 brew install tesseract
 brew install tesseract-lang  # För svenska språkstöd
 ```
 
-#### Ubuntu/Debian:
+**Ubuntu/Debian:**
 ```bash
 sudo apt update
 sudo apt install tesseract-ocr
 sudo apt install tesseract-ocr-swe  # Svenska språkstöd
 ```
 
-#### Windows:
+**Windows:**
 Ladda ner från: https://github.com/UB-Mannheim/tesseract/wiki
 
-### Installera Python-beroenden
+#### Installera Python-beroenden
 
 ```bash
-pip install -r requirements.txt
+# Grundläggande beroenden
+pip install pytesseract pdf2image Pillow opencv-python numpy python-dateutil scikit-learn joblib Flask Flask-SocketIO Werkzeug
+
+# Lokala AI-modeller (rekommenderat)
+pip install transformers torch sentence-transformers
+
+# OpenAI-stöd (valfritt)
+pip install openai
 ```
 
-## Användning
+## 🤖 AI-konfiguration
+
+### Lokala AI-modeller (rekommenderat)
+
+Programmet stöder nu lokala AI-modeller som körs direkt på din maskin:
+
+- **Sentence Transformer**: Liten, snabb modell (117MB) - bra för svenska
+- **Swedish BERT**: Svensk BERT-modell (438MB) - hög precision
+- **Multilingual BERT**: Internationell modell (1.1GB) - stöder många språk
+
+**Konfigurera för lokala AI:**
+```python
+# I ai_config.py
+AI_TYPE = "lokal"
+LOKAL_AI_MODEL = "sentence_transformer"  # eller "swedish_bert", "multilingual_bert"
+```
+
+### OpenAI-integration (valfritt)
+
+För att använda OpenAI:
+
+1. **Sätt API-nyckel:**
+   ```bash
+   export OPENAI_API_KEY="sk-1234567890abcdef..."
+   ```
+
+2. **Konfigurera:**
+   ```python
+   # I ai_config.py
+   AI_TYPE = "openai"
+   OPENAI_MODEL = "gpt-3.5-turbo"
+   ```
+
+## 📁 Användning
 
 ### Grundläggande användning
 
@@ -57,6 +116,7 @@ pip install -r requirements.txt
    │   ├── Ortopedi/
    │   ├── Kirurgi/
    │   ├── Kardiologi/
+   │   ├── Gynekologi/
    │   └── osakert/    # Osäkra remisser
    └── remiss_sorterare.py
    ```
@@ -91,46 +151,128 @@ crontab -e
 3. Ange sökväg till Python och skriptet
 4. Sätt schemat efter behov
 
-## Konfiguration
+## ⚙️ Konfiguration
+
+### Huvudkonfiguration
 
 Redigera `config.py` för att anpassa:
 
 - **Verksamheter och nyckelord**: Lägg till eller ändra verksamheter
-- **Tröskelvärden**: Ändra sannolikhetströskel (standard: 90%)
+- **Tröskelvärden**: Ändra sannolikhetströskel (standard: 70% för AI, 90% för fallback)
 - **OCR-inställningar**: Justera DPI och språk
 - **Mappnamn**: Anpassa mappstruktur
 
-## Machine Learning
+### AI-konfiguration
 
-Programmet använder nu Machine Learning för förbättrad verksamhetsidentifiering:
+Redigera `ai_config.py` för AI-inställningar:
+
+```python
+# AI-typ
+AI_TYPE = "lokal"  # "lokal" eller "openai"
+
+# Lokala AI-modeller
+LOKAL_AI_MODEL = "sentence_transformer"
+LOKAL_AI_DOWNLOAD_MODELS = True
+
+# OpenAI (endast om AI_TYPE = "openai")
+OPENAI_MODEL = "gpt-3.5-turbo"
+OPENAI_TEMPERATURE = 0.1
+AI_CONFIDENCE_THRESHOLD = 70
+```
+
+## 🧠 AI och Machine Learning
+
+### AI-driven verksamhetsidentifiering
+
+Programmet använder nu AI som primär metod för verksamhetsidentifiering:
+
+1. **AI-analys** (70%+ sannolikhet): Använder OpenAI eller lokala modeller
+2. **ML-fallback**: Machine Learning med TF-IDF och Random Forest
+3. **Regelbaserad fallback**: Förbättrad nyckelordsanalys med kontextbaserad poängsättning
+4. **Osäker klassificering**: Returnerar "osakert" vid låg sannolikhet
+
+### Lokala AI-modeller
+
+**Fördelar:**
+- ✅ Ingen internetanslutning krävs
+- ✅ Inga API-kostnader
+- ✅ Datasäkerhet - allt körs lokalt
+- ✅ Snabbare svar - ingen nätverksfördröjning
+- ✅ Alltid tillgänglig
+
+**Modeller:**
+- **Sentence Transformer**: Snabb, effektiv för svenska text
+- **Swedish BERT**: Högsta precision för svenska
+- **Multilingual BERT**: Stöder många språk
+
+### Machine Learning
 
 - **TF-IDF Vectorizer**: Extraherar viktiga termer från texten
 - **Random Forest Classifier**: Klassificerar verksamhet med hög precision
 - **Automatisk träning**: Modellen tränas automatiskt vid första körningen
-- **Fallback-system**: Använder original nyckelordsmetod om ML misslyckas
+- **Fallback-system**: Använder AI om ML misslyckas
 
-### Träna ML-modellen manuellt:
+### Träna ML-modellen
+
+**Via webbgränssnittet:**
+1. Ladda upp remisser som hamnat i "osakert"
+2. Klicka på "Omdirigera" för varje remiss
+3. Välj rätt verksamhet
+4. Klicka på "Träna ML med omfördelningsdata"
+
+**Manuellt:**
 ```bash
 python ml_verksamhetsidentifierare.py
 ```
 
-### Via webbgränssnittet:
-Klicka på "Träna ML"-knappen i övre högra hörnet.
+## 🔄 Omdirigering av osäkra remisser
 
-### Exempel på konfiguration
+### Ny funktionalitet
 
-```python
-# Lägg till ny verksamhet
-VERKSAMHETER["Onkologi"] = [
-    "onkologi", "onkologisk", "cancer", "tumör", "malign",
-    "kemoterapi", "strålbehandling", "immunterapi"
-]
+Programmet stöder nu manuell omfördelnings av remisser som hamnat i "osakert":
 
-# Ändra tröskelvärde
-SANNOLIKHET_TRÖSKEL = 85  # Lägre tröskel för mer känslig sortering
-```
+1. **Lista osäkra remisser**: Se alla remisser som behöver omfördelnings
+2. **Omdirigera**: Flytta remisser till rätt verksamhet
+3. **Träna modellen**: Använd omfördelningsdata för att förbättra ML-modellen
+4. **Automatisk uppdatering**: .dat-filer uppdateras automatiskt
 
-## Output-format
+### API-endpoints
+
+- `GET /api/osakert_remisser` - Lista alla osäkra remisser
+- `POST /api/omfördela_remiss` - Omdirigera en remiss
+- `POST /api/träna_ml_med_omfördelningsdata` - Träna ML-modellen
+
+## 🎯 Förbättrad verksamhetsidentifiering
+
+### Kontextbaserad analys
+
+- **Mottagarfraser**: Söker efter "remiss till", "mottagare:", etc.
+- **Viktad poängsättning**: Nyckelord nära mottagarfraser får extra poäng
+- **Specifika termer**: Separata nyckelord för gynekologi, kirurgi, etc.
+- **Avsändarfiltrering**: Undviker att identifiera avsändaren istället för mottagaren
+
+### Debug-verktyg
+
+- **Steg-för-steg analys**: Se hur varje steg i identifieringen fungerar
+- **Poängsättning**: Visa detaljerad poängsättning för varje metod
+- **AI-analys**: Se AI:ns resonemang och sannolikhet
+
+## 📊 Webbgränssnitt
+
+Det nya webbgränssnittet erbjuder:
+
+- **Drag-and-drop**: Enkel filuppladdning
+- **Realtidsstatus**: Se bearbetningsförloppet live med WebSocket
+- **Statistik**: Översikt över bearbetade filer per verksamhet
+- **AI-status**: Kontrollera AI-modellernas status och konfiguration
+- **Lokal AI-kontroller**: Byt mellan olika lokala AI-modeller
+- **Omdirigering**: Hantera osäkra remisser direkt från gränssnittet
+- **Textanalys**: Testa verksamhetsidentifiering med valfri text
+- **Debug-analys**: Steg-för-steg analys av identifieringsprocessen
+- **ML-träning**: Träna modellen direkt från gränssnittet
+- **Responsivt design**: Fungerar på alla enheter
+
+## 📤 Output-format
 
 ### .dat-filer
 
@@ -154,31 +296,24 @@ output/
 │   └── remiss2.dat
 ├── Kirurgi/
 │   └── ...
+├── Gynekologi/
+│   └── ...
 └── osakert/
     └── ... (remisser med låg sannolikhet)
 ```
 
-## Loggning
+## 📝 Loggning
 
 Programmet skapar detaljerade loggar i `remiss_sorterare.log`:
 
 - Bearbetningsstatus för varje PDF
 - OCR-resultat och extraherad text
-- Identifierade verksamheter och sannolikheter
+- AI-analysresultat och sannolikheter
 - ML-modellens prestanda och träning
+- Omdirigeringar och ML-träning
 - Fel och varningar
 
-## Webbgränssnitt
-
-Det nya webbgränssnittet erbjuder:
-
-- **Drag-and-drop**: Enkel filuppladdning
-- **Realtidsstatus**: Se bearbetningsförloppet live
-- **Statistik**: Översikt över bearbetade filer
-- **ML-träning**: Träna modellen direkt från gränssnittet
-- **Responsivt design**: Fungerar på alla enheter
-
-## Felsökning
+## 🔧 Felsökning
 
 ### Vanliga problem
 
@@ -192,9 +327,15 @@ Det nya webbgränssnittet erbjuder:
    - Förbättra skanning av originaldokument
 
 3. **Fel verksamhet identifieras**:
-   - Granska nyckelord i config.py
-   - Lägg till fler specifika termer
-   - Justera tröskelvärde
+   - Använd debug-analys för att se steg-för-steg
+   - Kontrollera AI-konfigurationen
+   - Lägg till fler specifika termer i config.py
+   - Justera tröskelvärden
+
+4. **AI-modeller laddas inte**:
+   - Kontrollera internetanslutning (för första nedladdningen)
+   - Verifiera att rätt AI-typ är vald i ai_config.py
+   - Kontrollera att alla AI-bibliotek är installerade
 
 ### Debug-läge
 
@@ -204,26 +345,64 @@ Aktivera debug-loggning i `config.py`:
 LOG_NIVÅ = "DEBUG"
 ```
 
-## Prestanda
+### AI-debug
+
+Använd debug-verktygen i webbgränssnittet:
+1. Klicka på "Debug Analys" för steg-för-steg analys
+2. Kontrollera AI-status för att se modellernas tillstånd
+3. Testa AI med valfri text
+
+## ⚡ Prestanda
 
 - **Bearbetningstid**: ~30-60 sekunder per PDF (beroende på sidantal och bildkvalitet)
 - **Minnesanvändning**: ~100-200 MB per PDF
+- **AI-modeller**: 
+  - Sentence Transformer: ~117MB
+  - Swedish BERT: ~438MB
+  - Multilingual BERT: ~1.1GB
 - **Lagringsutrymme**: ~2-5x originalfilens storlek (temporära bilder)
 
-## Säkerhet
+## 🔒 Säkerhet
 
 - Programmet läser endast PDF-filer
-- Inga data skickas externt
+- **Lokala AI-modeller**: Inga data skickas externt
+- **OpenAI**: Data skickas till OpenAI (se deras sekretesspolicy)
 - Loggar innehåller inte känslig patientinformation
 - Rekommendation: Kör i isolerad miljö för produktion
 
-## Support
+## 🆘 Support
 
-För frågor eller problem:
-1. Kontrollera loggfilen för felmeddelanden
-2. Verifiera att alla beroenden är korrekt installerade
-3. Testa med en enkel PDF först
+### Felsökning
 
-## Licens
+1. **Kontrollera loggfilen** för felmeddelanden
+2. **Verifiera AI-konfiguration** i ai_config.py
+3. **Testa med en enkel PDF** först
+4. **Använd debug-verktygen** i webbgränssnittet
+
+### Vanliga frågor
+
+**Q: Varför fungerar inte AI-identifiering?**
+A: Kontrollera att rätt AI_TYPE är vald i ai_config.py och att alla beroenden är installerade.
+
+**Q: Hur byter jag mellan olika AI-modeller?**
+A: Använd "Lokal AI-kontroller" i webbgränssnittet eller ändra LOKAL_AI_MODEL i ai_config.py.
+
+**Q: Kan jag använda programmet utan internet?**
+A: Ja, med lokala AI-modeller fungerar allt offline efter första nedladdningen.
+
+## 📄 Licens
 
 Detta program är utvecklat för intern användning. Se till att följa relevanta riktlinjer för hantering av patientdata.
+
+## 🔄 Uppdateringar
+
+### Senaste versionen innehåller:
+
+- ✅ AI-driven verksamhetsidentifiering
+- ✅ Stöd för lokala AI-modeller
+- ✅ Omdirigering av osäkra remisser
+- ✅ Förbättrad kontextbaserad analys
+- ✅ Debug-verktyg för felsökning
+- ✅ Webbgränssnitt med realtidsstatus
+- ✅ ML-träning med omfördelningsdata
+- ✅ Stöd för fler verksamheter (Gynekologi, etc.)
