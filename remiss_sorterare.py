@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Remissorterare - Automatisk hantering av inscannade remisser för Sälma-systemet
+Remissorterare - Automatisk hantering av inscannade remisser
 
 Programmet läser PDF-filer, utför OCR, extraherar relevant information
 och sorterar remisserna till rätt verksamhetsmappar.
@@ -49,11 +49,11 @@ class RemissSorterare:
         self.output_mapp = Path(output_mapp)
         self.osakert_mapp = self.output_mapp / OSAKERT_MAPP
         
-        # Skapa nödvändiga mappar
-        self._skapa_mappar()
-        
         # Verksamheter och nyckelord från config
         self.verksamheter = VERKSAMHETER
+        
+        # Skapa nödvändiga mappar
+        self._skapa_mappar()
         
         # ML-identifierare
         self.ml_identifierare = MLVerksamhetsIdentifierare()

@@ -1,6 +1,6 @@
 # Remissorterare
 
-Ett Python-program för automatisk hantering av inscannade remisser (PDF:er) och förberedelse av data för import i Sälma-systemet.
+Ett Python-program för automatisk hantering av inscannade remisser (PDF:er) och förberedelse av data för import i andra system.
 
 ## Funktioner
 
