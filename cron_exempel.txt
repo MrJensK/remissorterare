@@ -1,0 +1,8 @@
+# Exempel på cron-konfiguration för körning varje timme:
+# 0 * * * * cd /sökväg/till/remissorterare && ./venv/bin/python run_scheduled.py
+
+# För körning var 15:e minut:
+# */15 * * * * cd /sökväg/till/remissorterare && ./venv/bin/python run_scheduled.py
+
+# För körning varje dag kl 08:00:
+# 0 8 * * * cd /sökväg/till/remissorterare && ./venv/bin/python run_scheduled.py

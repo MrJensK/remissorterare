@@ -21,15 +21,35 @@ fi
 echo "✅ Operativsystem: $OS"
 
 # Kontrollera Python-version
-python_version=$(python3 --version 2>&1 | cut -d' ' -f2)
-required_version="3.8"
 
-if [ "$(printf '%s\n' "$required_version" "$python_version" | sort -V | head -n1)" = "$required_version" ]; then
-    echo "✅ Python-version: $python_version (OK)"
-else
-    echo "❌ Python $required_version eller senare krävs. Nuvarande: $python_version"
-    exit 1
+# Installera och använd pyenv för att säkra Python 3.12
+if ! command -v pyenv &> /dev/null; then
+    echo "📦 Installerar pyenv..."
+    curl https://pyenv.run | bash
+    export PATH="$HOME/.pyenv/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
 fi
+
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+required_version="3.12.0"
+    if ! pyenv versions | grep -q "$required_version"; then
+        echo "📦 Installerar byggberoenden för Python..."
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
+                libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+                libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev \
+                python3-openssl git
+        fi
+        echo "📦 Installerar Python $required_version via pyenv..."
+        pyenv install $required_version
+    fi
+pyenv local $required_version
+echo "✅ Python-version: $(python --version) (pyenv)"
 
 # Installera Tesseract OCR
 echo ""
@@ -72,10 +92,9 @@ fi
 
 # Skapa virtuell miljö
 echo ""
-echo "🐍 Skapar virtuell Python-miljö..."
-
+echo "🐍 Skapar virtuell Python-miljö med Python $required_version..."
 if [ ! -d "venv" ]; then
-    python3 -m venv venv
+    python -m venv venv
     echo "✅ Virtuell miljö skapad"
 else
     echo "✅ Virtuell miljö finns redan"
