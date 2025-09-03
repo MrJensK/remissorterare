@@ -3,7 +3,7 @@ Konfigurationsfil för Remissorterare
 """
 
 # Tröskelvärden
-SANNOLIKHET_TRÖSKEL = 90  # Minsta sannolikhet för att sortera till verksamhet
+SANNOLIKHET_TRÖSKEL = 70  # Minsta sannolikhet för att sortera till verksamhet
 
 # OCR-inställningar
 OCR_DPI = 300

@@ -93,6 +93,13 @@ class AIVerksamhetsIdentifierare:
                         temperature=OPENAI_TEMPERATURE,
                         max_tokens=OPENAI_MAX_TOKENS
                     )
+                    
+                    # Logga AI-svar om aktiverat
+                    if AI_LOG_RESPONSES:
+                        ai_svar = response.choices[0].message.content.strip()
+                        logger.info(f"AI-svar: {ai_svar}")
+                        logger.info(f"OpenAI fullständig response: {response}")
+                    
                     break
                 except Exception as e:
                     if attempt == AI_MAX_RETRIES - 1:
@@ -102,10 +109,6 @@ class AIVerksamhetsIdentifierare:
             
             # Parsa svaret
             ai_svar = response.choices[0].message.content.strip()
-            
-            # Logga AI-svar om aktiverat
-            if AI_LOG_RESPONSES:
-                logger.info(f"AI-svar: {ai_svar}")
             
             # Extrahera verksamhet och sannolikhet från AI-svaret
             verksamhet, sannolikhet = self._parsa_ai_svar(ai_svar)
@@ -129,8 +132,8 @@ Tillgängliga verksamheter:
 {', '.join(self.verksamheter)}
 
 Instruktioner:
-1. Titta på MOTTAGAREN (inte avsändaren)
-2. Sök efter fraser som "remiss till", "mottagare:", "till verksamhet:", etc.
+1. Titta på Mottagare (inte avsändare)
+2. Sök efter fraser som "remiss till", "mottagare", "till verksamhet", etc.
 3. Analysera innehållet för att förstå vad remissen handlar om
 4. Välj den mest lämpliga verksamheten
 5. Ge en kort motivering för ditt val
@@ -178,6 +181,11 @@ Motivering: [kort förklaring av varför denna verksamhet valdes]
             # Validera sannolikhet
             if not (0 <= sannolikhet <= 100):
                 sannolikhet = 75.0  # Standardvärde om AI inte gav en giltig sannolikhet
+            elif sannolikhet == 0.0 and verksamhet != "Okänd":
+                # Om AI identifierade en verksamhet men gav 0% sannolikhet, 
+                # betyder det att AI:n är osäker - sätt till 50% istället
+                sannolikhet = 50.0
+                logger.info(f"AI gav 0% sannolikhet för '{verksamhet}' - sätter till 50% (osäker)")
             
             logger.info(f"AI identifierade: {verksamhet} med {sannolikhet}% sannolikhet")
             return verksamhet, sannolikhet

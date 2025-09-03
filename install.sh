@@ -51,9 +51,9 @@ required_version="3.12.0"
 pyenv local $required_version
 echo "✅ Python-version: $(python --version) (pyenv)"
 
-# Installera Tesseract OCR
+# Installera Tesseract OCR och Poppler
 echo ""
-echo "📦 Installerar Tesseract OCR..."
+echo "📦 Installerar Tesseract OCR och Poppler..."
 
 if [ "$OS" = "macos" ]; then
     if ! command -v brew &> /dev/null; then
@@ -65,16 +65,25 @@ if [ "$OS" = "macos" ]; then
     brew install tesseract
     brew install tesseract-lang
     
+    echo "Installerar Poppler via Homebrew..."
+    brew install poppler
+    
 elif [ "$OS" = "linux" ]; then
     if command -v apt-get &> /dev/null; then
         echo "Installerar Tesseract via apt..."
         sudo apt-get update
         sudo apt-get install -y tesseract-ocr
         sudo apt-get install -y tesseract-ocr-swe
+        
+        echo "Installerar Poppler via apt..."
+        sudo apt-get install -y poppler-utils
     elif command -v yum &> /dev/null; then
         echo "Installerar Tesseract via yum..."
         sudo yum install -y tesseract
         sudo yum install -y tesseract-langpack-swe
+        
+        echo "Installerar Poppler via yum..."
+        sudo yum install -y poppler-utils
     else
         echo "❌ Pakethanterare (apt eller yum) hittades inte"
         exit 1
@@ -87,6 +96,15 @@ if command -v tesseract &> /dev/null; then
     echo "✅ Tesseract installerat: $tesseract_version"
 else
     echo "❌ Tesseract kunde inte installeras"
+    exit 1
+fi
+
+# Verifiera Poppler-installation
+if command -v pdftoppm &> /dev/null; then
+    poppler_version=$(pdftoppm -v 2>&1 | head -n1)
+    echo "✅ Poppler installerat: $poppler_version"
+else
+    echo "❌ Poppler kunde inte installeras"
     exit 1
 fi
 

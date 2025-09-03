@@ -5,6 +5,7 @@ Flask-app med drag-and-drop, realtidsstatus och resultatvisning
 """
 
 import os
+import sys
 import json
 import logging
 import threading
@@ -20,6 +21,55 @@ import uuid
 from remiss_sorterare import RemissSorterare
 from ml_verksamhetsidentifierare import MLVerksamhetsIdentifierare
 from config import *
+
+# Kontrollera att virtuell miljö är aktiverad
+def kontrollera_virtuell_miljo():
+    """Kontrollerar att virtuell miljö är aktiverad innan appen startar"""
+    venv_path = os.environ.get('VIRTUAL_ENV')
+    if not venv_path:
+        print("❌ FEL: Virtuell miljö är inte aktiverad!")
+        print("")
+        print("Aktivera den virtuella miljön först:")
+        print("  source venv/bin/activate")
+        print("")
+        print("Eller använd startskriptet:")
+        print("  ./start_web.sh")
+        print("")
+        exit(1)
+    
+    # Kontrollera att vi använder rätt Python
+    # Hantera både vanliga venv och pyenv-venv
+    python_path = os.path.realpath(sys.executable)
+    venv_python = os.path.realpath(os.path.join(venv_path, 'bin', 'python'))
+    
+    # Kontrollera om vi använder rätt Python (antingen direkt eller via pyenv)
+    python_ok = False
+    
+    # Fall 1: Direkt venv Python
+    if python_path.startswith(venv_path):
+        python_ok = True
+    # Fall 2: Python via pyenv men med rätt venv aktiverad
+    elif 'pyenv' in python_path and venv_path in os.environ.get('PATH', ''):
+        # Kontrollera att venv/bin finns i PATH
+        venv_bin_in_path = any(venv_path in p for p in os.environ.get('PATH', '').split(':'))
+        if venv_bin_in_path:
+            python_ok = True
+    
+    if not python_ok:
+        print("❌ FEL: Fel Python-miljö aktiverad!")
+        print(f"Använder: {python_path}")
+        print(f"Förväntad: {venv_python}")
+        print("")
+        print("Aktivera den virtuella miljön först:")
+        print("  source venv/bin/activate")
+        print("")
+        exit(1)
+    
+    print(f"✅ Virtuell miljö aktiverad: {venv_path}")
+    print(f"✅ Python: {python_path}")
+
+# Kör kontrollen direkt
+kontrollera_virtuell_miljo()
 
 # Konfigurera Flask-app
 app = Flask(__name__)
@@ -198,6 +248,11 @@ web_sorterare = WebRemissSorterare()
 def index():
     """Huvudsida"""
     return render_template('index.html')
+
+@app.route('/ollama')
+def ollama_page():
+    """Sida för hantering av Ollama-modeller"""
+    return render_template('ollama.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -757,6 +812,105 @@ def api_byt_lokal_ai_modell():
             'error': str(e)
         }), 500
 
+@app.route('/api/ollama_modeller')
+def api_ollama_modeller():
+    """API för att lista tillgängliga Ollama-modeller"""
+    try:
+        from ollama_config import OLLAMA_MODELS, RECOMMENDED_FOR_SWEDISH
+        
+        return jsonify({
+            'success': True,
+            'modeller': OLLAMA_MODELS,
+            'rekommenderade': RECOMMENDED_FOR_SWEDISH
+        })
+        
+    except Exception as e:
+        logger.error(f"Fel vid hämtning av Ollama-modeller: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ollama_installerade')
+def api_ollama_installerade():
+    """API för att kontrollera vilka Ollama-modeller som är installerade"""
+    try:
+        import requests
+        
+        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            return jsonify({
+                'success': True,
+                'installerade_modeller': [model['name'] for model in models]
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Kan inte ansluta till Ollama'
+            }), 500
+            
+    except requests.exceptions.RequestException:
+        return jsonify({
+            'success': False,
+            'error': 'Ollama är inte igång'
+        }), 500
+    except Exception as e:
+        logger.error(f"Fel vid kontroll av installerade Ollama-modeller: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/byt_ollama_modell', methods=['POST'])
+def api_byt_ollama_modell():
+    """API för att byta Ollama-modell"""
+    try:
+        data = request.get_json()
+        ny_modell = data.get('modell', '')
+        
+        if not ny_modell:
+            return jsonify({
+                'success': False,
+                'error': 'Ingen modell angiven'
+            }), 400
+        
+        from ollama_config import validate_model_name
+        if not validate_model_name(ny_modell):
+            return jsonify({
+                'success': False,
+                'error': f'Ogiltig modellnamn: {ny_modell}'
+            }), 400
+        
+        # Skapa en ny lokal AI-identifierare med den valda modellen
+        web_sorterare = WebRemissSorterare()
+        if hasattr(web_sorterare.sorterare.ai_identifierare, 'byt_ollama_modell'):
+            resultat = web_sorterare.sorterare.ai_identifierare.byt_ollama_modell(ny_modell)
+            
+            if resultat:
+                return jsonify({
+                    'success': True,
+                    'meddelande': f'Ollama-modell bytt till: {ny_modell}',
+                    'ny_modell': ny_modell
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Kunde inte byta till modell: {ny_modell}'
+                }), 500
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Ollama-modellhantering stöds inte'
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Fel vid byte av Ollama-modell: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/download/<path:filename>')
 def download_file(filename):
     """Låter användare ladda ner bearbetade filer"""
@@ -1197,4 +1351,4 @@ if __name__ == '__main__':
             logger.warning(f"Kunde inte träna ML-modell: {e}")
     
     # Starta Flask-app
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=8000)

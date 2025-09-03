@@ -1,31 +1,40 @@
 #!/bin/bash
+# Startskript för webbgränssnittet
 
-# Startskript för Remissorterare Web App
+echo "🚀 Startar Remissorterare webbgränssnitt..."
+echo "=========================================="
 
-echo "🚀 Startar Remissorterare Web App..."
-
-# Aktivera virtuell miljö om den finns
-if [ -d "venv" ]; then
-    echo "Aktiverar virtuell miljö..."
-    source venv/bin/activate
-fi
-
-# Kontrollera att alla beroenden är installerade
-echo "Kontrollerar beroenden..."
-python -c "import flask, flask_socketio, sklearn, joblib" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "❌ Vissa beroenden saknas. Kör 'pip install -r requirements.txt' först."
+# Kontrollera att virtuell miljö finns
+if [ ! -d "venv" ]; then
+    echo "❌ FEL: Virtuell miljö 'venv' finns inte!"
+    echo ""
+    echo "Kör installationsskriptet först:"
+    echo "  ./install.sh"
+    echo ""
     exit 1
 fi
 
-# Skapa nödvändiga mappar
-echo "Skapar mappar..."
-mkdir -p uploads static/uploads models
+# Aktivera virtuell miljö
+echo "🔧 Aktiverar virtuell miljö..."
+source venv/bin/activate
 
-# Starta web-appen
-echo "✅ Startar web-server..."
-echo "🌐 Öppna webbläsaren på: http://localhost:5000"
-echo "⏹️  Tryck Ctrl+C för att stoppa servern"
+# Kontrollera att aktiveringen lyckades
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "❌ FEL: Kunde inte aktivera virtuell miljö!"
+    echo ""
+    echo "Kontrollera att venv/bin/activate finns och är körbar."
+    echo ""
+    exit 1
+fi
+
+echo "✅ Virtuell miljö aktiverad: $VIRTUAL_ENV"
+echo "✅ Python: $(which python)"
+echo ""
+
+# Kör webbapplikationen
+echo "🌐 Startar webbgränssnittet..."
+echo "Öppna http://localhost:8000 i din webbläsare"
+echo "Tryck Ctrl+C för att stoppa"
 echo ""
 
 python web_app.py

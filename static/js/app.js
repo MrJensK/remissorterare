@@ -168,7 +168,7 @@ function loadResultat() {
                 throw new Error(resultat.error);
             }
             
-            displayResultat(resultat);
+            showResultat(resultat);
             document.getElementById('resultat-section').style.display = 'block';
             loadStatistik(); // Uppdatera statistik
         })

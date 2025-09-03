@@ -7,6 +7,7 @@ och sorterar remisserna till rätt verksamhetsmappar.
 """
 
 import os
+import sys
 import re
 import shutil
 import logging
@@ -25,6 +26,55 @@ from ml_verksamhetsidentifierare import MLVerksamhetsIdentifierare
 from ai_verksamhetsidentifierare import AIVerksamhetsIdentifierare
 from lokal_ai_verksamhetsidentifierare import LokalAIVerksamhetsIdentifierare
 from ai_config import *
+
+# Kontrollera att virtuell miljö är aktiverad
+def kontrollera_virtuell_miljo():
+    """Kontrollerar att virtuell miljö är aktiverad innan programmet startar"""
+    venv_path = os.environ.get('VIRTUAL_ENV')
+    if not venv_path:
+        print("❌ FEL: Virtuell miljö är inte aktiverad!")
+        print("")
+        print("Aktivera den virtuella miljön först:")
+        print("  source venv/bin/activate")
+        print("")
+        print("Eller använd startskriptet:")
+        print("  ./start.sh")
+        print("")
+        exit(1)
+    
+    # Kontrollera att vi använder rätt Python
+    # Hantera både vanliga venv och pyenv-venv
+    python_path = os.path.realpath(sys.executable)
+    venv_python = os.path.realpath(os.path.join(venv_path, 'bin', 'python'))
+    
+    # Kontrollera om vi använder rätt Python (antingen direkt eller via pyenv)
+    python_ok = False
+    
+    # Fall 1: Direkt venv Python
+    if python_path.startswith(venv_path):
+        python_ok = True
+    # Fall 2: Python via pyenv men med rätt venv aktiverad
+    elif 'pyenv' in python_path and venv_path in os.environ.get('PATH', ''):
+        # Kontrollera att venv/bin finns i PATH
+        venv_bin_in_path = any(venv_path in p for p in os.environ.get('PATH', '').split(':'))
+        if venv_bin_in_path:
+            python_ok = True
+    
+    if not python_ok:
+        print("❌ FEL: Fel Python-miljö aktiverad!")
+        print(f"Använder: {python_path}")
+        print(f"Förväntad: {venv_python}")
+        print("")
+        print("Aktivera den virtuella miljön först:")
+        print("  source venv/bin/activate")
+        print("")
+        exit(1)
+    
+    print(f"✅ Virtuell miljö aktiverad: {venv_path}")
+    print(f"✅ Python: {python_path}")
+
+# Kör kontrollen direkt
+kontrollera_virtuell_miljo()
 
 # Konfigurera logging
 logging.basicConfig(
@@ -102,8 +152,16 @@ class RemissSorterare:
         """
         try:
             logger.info(f"Konverterar PDF till bilder: {pdf_sokvag}")
+            logger.info(f"PDF-storlek: {os.path.getsize(pdf_sokvag)} bytes")
+            logger.info(f"OCR DPI: {OCR_DPI}")
+            
             bilder = convert_from_path(pdf_sokvag, dpi=OCR_DPI)
             logger.info(f"Skapade {len(bilder)} bilder från PDF")
+            
+            # Logga information om varje bild
+            for i, bild in enumerate(bilder):
+                logger.info(f"Bild {i+1}: storlek {bild.size}, format {bild.mode}")
+            
             return bilder
         except Exception as e:
             logger.error(f"Fel vid konvertering av PDF: {e}")
@@ -160,6 +218,7 @@ class RemissSorterare:
             
             try:
                 # Utför OCR med svenska språk
+                logger.info(f"Utför OCR på bild {i+1} med språk: {OCR_SPRÅK}, PSM: {OCR_PSM}")
                 text = pytesseract.image_to_string(
                     forbattrad_bild, 
                     lang=OCR_SPRÅK,
@@ -167,6 +226,7 @@ class RemissSorterare:
                 )
                 all_text += text + "\n"
                 logger.info(f"Extraherade {len(text)} tecken från bild {i+1}")
+                logger.debug(f"OCR-text från bild {i+1}: {text[:200]}...")
             except Exception as e:
                 logger.error(f"OCR-fel på bild {i+1}: {e}")
         

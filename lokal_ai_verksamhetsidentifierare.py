@@ -10,6 +10,7 @@ import requests
 from typing import Dict, List, Tuple, Optional
 import numpy as np
 from config import VERKSAMHETER
+from ollama_config import *
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,8 @@ class LokalAIVerksamhetsIdentifierare:
         # Modellalternativ med moderna AI-lösningar
         self.model_options = {
             "ollama": {
-                "name": "llama2:7b",
-                "description": "Ollama med Llama 2 (7B) - Snabb och effektiv",
+                "name": DEFAULT_OLLAMA_MODEL,  # Använd standard från ollama_config
+                "description": "Ollama med konfigurerbar modell",
                 "url": "http://localhost:11434/api/generate",
                 "requires_setup": True
             },
@@ -61,6 +62,37 @@ class LokalAIVerksamhetsIdentifierare:
         
         self.ladda_modell()
     
+    def byt_ollama_modell(self, model_name: str) -> bool:
+        """Byter Ollama-modell till en ny modell"""
+        try:
+            if not validate_model_name(model_name):
+                logger.error(f"Ogiltig modellnamn: {model_name}")
+                logger.info(f"Tillgängliga modeller: {', '.join(list_available_models())}")
+                return False
+            
+            # Uppdatera modellnamnet
+            self.model_options["ollama"]["name"] = model_name
+            logger.info(f"Bytt till Ollama-modell: {model_name}")
+            
+            # Ladda om modellen
+            return self._ladda_ollama_modell()
+            
+        except Exception as e:
+            logger.error(f"Fel vid byte av Ollama-modell: {e}")
+            return False
+    
+    def hämta_tillgängliga_ollama_modeller(self) -> list:
+        """Hämtar lista över tillgängliga Ollama-modeller"""
+        return list_available_models()
+    
+    def hämta_rekommenderade_modeller(self) -> list:
+        """Hämtar rekommenderade modeller för svenska"""
+        return get_recommended_models()
+    
+    def hämta_modell_info(self, model_name: str) -> dict:
+        """Hämtar information om en specifik modell"""
+        return get_model_info(model_name)
+    
     def ladda_modell(self):
         """Laddar den valda AI-modellen"""
         try:
@@ -88,9 +120,30 @@ class LokalAIVerksamhetsIdentifierare:
             # Testa anslutning till Ollama
             response = requests.get("http://localhost:11434/api/tags", timeout=5)
             if response.status_code == 200:
-                logger.info("Ollama-anslutning fungerar")
-                self.model = "ollama"
-                return True
+                # Kontrollera vilken modell som är vald
+                vald_modell = self.model_options["ollama"]["name"]
+                logger.info(f"Ollama-anslutning fungerar, vald modell: {vald_modell}")
+                
+                # Kontrollera om modellen finns installerad
+                try:
+                    model_response = requests.get(f"http://localhost:11434/api/show", 
+                                               json={"name": vald_modell}, timeout=5)
+                    if model_response.status_code == 200:
+                        logger.info(f"Modell {vald_modell} är installerad och redo")
+                        self.model = "ollama"
+                        return True
+                    else:
+                        logger.warning(f"Modell {vald_modell} är inte installerad")
+                        logger.info(f"Installera med: ollama pull {vald_modell}")
+                        # Använd standardmodellen istället
+                        self.model_options["ollama"]["name"] = DEFAULT_OLLAMA_MODEL
+                        logger.info(f"Använder standardmodell: {DEFAULT_OLLAMA_MODEL}")
+                        self.model = "ollama"
+                        return True
+                except Exception as e:
+                    logger.warning(f"Kunde inte kontrollera modell {vald_modell}: {e}")
+                    self.model = "ollama"
+                    return True
             else:
                 logger.error(f"Ollama svarade med status {response.status_code}")
                 return False
@@ -260,6 +313,10 @@ class LokalAIVerksamhetsIdentifierare:
                 result = response.json()
                 ai_response = result.get('response', '').strip()
                 
+                # Logga rå output från AI:n för debugging
+                logger.info(f"Ollama rå output: {ai_response}")
+                logger.info(f"Ollama fullständig response: {result}")
+                
                 # Parsa AI-svar
                 verksamhet, sannolikhet = self._parsa_ai_svar(ai_response)
                 
@@ -394,24 +451,25 @@ class LokalAIVerksamhetsIdentifierare:
     
     def _skapa_ollama_prompt(self, text: str) -> str:
         """Skapar prompt för Ollama"""
-        return f"""Analysera följande svenska medicinska remiss och identifiera vilken verksamhet den ska skickas till.
+        return f"""Du är en expert på svenska medicinska remisser. Din uppgift är att identifiera vilken medicinsk verksamhet en remiss ska skickas till.
 
 Tillgängliga verksamheter: {', '.join(self.verksamheter)}
 
-Instruktioner:
-1. Titta på MOTTAGAREN (inte avsändaren)
-2. Sök efter fraser som "remiss till", "mottagare:", "till verksamhet:", etc.
-3. Analysera innehållet för att förstå vad remissen handlar om
-4. Välj den mest lämpliga verksamheten
-5. Ge en kort motivering för ditt val
+VIKTIGA REGLER:
+1. Titta ALLTID på MOTTAGAREN (inte avsändaren)
+2. Sök efter fraser som "remiss till", "mottagare:", "till verksamhet:", "till klinik:", etc.
+3. Analysera innehållet noggrant för att förstå vad remissen handlar om
+4. Välj den mest lämpliga verksamheten baserat på innehållet
+5. Sätt sannolikheten till MINST 70% om du är säker på din identifiering
+6. Sätt sannolikheten till 0% ENDAST om du verkligen inte kan identifiera verksamheten
 
 Remisstext:
 {text[:1000]}
 
-Svara i följande format:
+Svara EXAKT i följande format:
 Verksamhet: [verksamhetsnamn]
-Sannolikhet: [0-100]%
-Motivering: [kort förklaring]"""
+Sannolikhet: [70-100]% (om säker) eller 0% (om osäker)
+Motivering: [kort förklaring av varför denna verksamhet valdes]"""
     
     def _skapa_openai_prompt(self, text: str) -> str:
         """Skapar prompt för OpenAI-kompatibel server"""
@@ -464,7 +522,12 @@ Motivering: [kort förklaring]"""
             
             # Validera sannolikhet
             if not (0 <= sannolikhet <= 100):
-                sannolikhet = 75.0  # Standardvärde
+                sannolikhet = 75.0  # Standardvärde om AI gav ogiltig sannolikhet
+            elif sannolikhet == 0.0 and verksamhet != "Okänd":
+                # Om AI identifierade en verksamhet men gav 0% sannolikhet, 
+                # betyder det att AI:n är osäker - sätt till 50% istället
+                sannolikhet = 50.0
+                logger.info(f"AI gav 0% sannolikhet för '{verksamhet}' - sätter till 50% (osäker)")
             
             return verksamhet, sannolikhet
             

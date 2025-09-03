@@ -36,6 +36,7 @@ chmod +x install.sh
 **Vad installationsskriptet gör automatiskt:**
 - ✅ Installerar Python 3.12 via pyenv
 - ✅ Installerar Tesseract OCR med svenska språkstöd
+- ✅ Installerar Poppler för PDF-konvertering (macOS/Linux)
 - ✅ Skapar virtuell Python-miljö
 - ✅ Installerar alla Python-beroenden
 - ✅ Installerar lokala AI-bibliotek
@@ -44,6 +45,7 @@ chmod +x install.sh
 - ✅ Konfigurerar AI-inställningar
 - ✅ Testar installationen
 - ✅ Skapar startskript
+- ✅ Kontrollerar virtuell miljö vid körning
 
 ### Manuell installation
 
@@ -65,10 +67,40 @@ brew install tesseract-lang  # För svenska språkstöd
 sudo apt update
 sudo apt install tesseract-ocr
 sudo apt install tesseract-ocr-swe  # Svenska språkstöd
+sudo apt install poppler-utils      # PDF-konvertering
+```
+
+**macOS:**
+```bash
+brew install tesseract
+brew install tesseract-lang  # För svenska språkstöd
+brew install poppler         # PDF-konvertering
 ```
 
 **Windows:**
 Ladda ner från: https://github.com/UB-Mannheim/tesseract/wiki
+
+#### Installera Ollama (rekommenderat)
+
+**macOS:**
+```bash
+brew install ollama
+```
+
+**Linux:**
+```bash
+curl -fsSL https://ollama.ai/install.sh | sh
+```
+
+**Starta Ollama:**
+```bash
+ollama serve
+```
+
+**Installera standardmodell:**
+```bash
+ollama pull llama2:7b
+```
 
 #### Installera Python-beroenden
 
@@ -92,9 +124,61 @@ pip install openai
 
 ## 🤖 AI-konfiguration
 
-### Lokala AI-modeller (rekommenderat)
+### Ollama-modeller (rekommenderat)
 
-Programmet stöder nu lokala AI-modeller som körs direkt på din maskin:
+Programmet stöder nu **Ollama** - lokala stora språkmodeller som körs direkt på din maskin:
+
+#### **Tillgängliga modeller:**
+- **`llama2:7b`** (4.7GB): Snabb och effektiv, bra för svenska
+- **`mistral:7b-instruct`** (4.1GB): Optimerad för instruktioner, utmärkt för svenska
+- **`llama2:13b`** (8.5GB): Högre kvalitet, kräver mer minne (16GB RAM)
+- **`llama2:70b`** (39GB): Högsta kvalitet, kräver mycket minne (32GB RAM)
+- **`codellama:7b`** (4.7GB): Bra för strukturerad text
+- **`qwen:7b`** (4.7GB): Modern modell med bra svenska stöd
+- **`phi:2.7b`** (1.7GB): Liten men effektiv (4GB RAM)
+
+#### **Rekommenderade modeller för svenska:**
+1. **`mistral:7b-instruct`** - Bästa balansen mellan kvalitet och hastighet
+2. **`llama2:7b`** - Bra standardmodell
+3. **`llama2:13b`** - Om du har tillräckligt med RAM
+
+#### **Installera Ollama:**
+```bash
+# macOS
+brew install ollama
+
+# Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Starta Ollama
+ollama serve
+```
+
+#### **Hantera modeller:**
+```bash
+# Lista tillgängliga modeller
+python ollama_manager.py list
+
+# Installera en modell
+python ollama_manager.py install llama2:7b
+
+# Testa en modell
+python ollama_manager.py test mistral:7b-instruct
+
+# Sätt standardmodell
+python ollama_manager.py set-default mistral:7b-instruct
+```
+
+#### **Webbgränssnitt:**
+Gå till `/ollama` för en komplett webbgränssnitt för modellhantering:
+- Installera modeller
+- Byt mellan modeller
+- Testa modeller
+- Se status och prestanda
+
+### Andra lokala AI-modeller
+
+Programmet stöder även andra lokala AI-modeller:
 
 - **Sentence Transformer**: Liten, snabb modell (117MB) - bra för svenska
 - **Swedish BERT**: Svensk BERT-modell (438MB) - hög precision
@@ -104,7 +188,7 @@ Programmet stöder nu lokala AI-modeller som körs direkt på din maskin:
 ```python
 # I ai_config.py
 AI_TYPE = "lokal"
-LOKAL_AI_MODEL = "sentence_transformer"  # eller "swedish_bert", "multilingual_bert"
+LOKAL_AI_MODEL = "ollama"  # eller "sentence_transformer", "swedish_bert", "multilingual_bert"
 ```
 
 ### OpenAI-integration (valfritt)
@@ -163,6 +247,36 @@ För att använda OpenAI:
    python web_app.py
    ```
 
+### Ollama-modellhantering
+
+#### **Webbgränssnitt:**
+1. Starta webbapplikationen: `./start_web.sh`
+2. Gå till `/ollama` för modellhantering
+3. Installera, byt och testa olika modeller
+
+#### **Kommandoradsverktyg:**
+```bash
+# Aktivera virtuell miljö
+source venv/bin/activate
+
+# Lista tillgängliga modeller
+python ollama_manager.py list
+
+# Installera en modell
+python ollama_manager.py install mistral:7b-instruct
+
+# Testa en modell
+python ollama_manager.py test llama2:7b
+
+# Sätt standardmodell
+python ollama_manager.py set-default mistral:7b-instruct
+```
+
+#### **Automatisk modellhantering:**
+- Programmet kontrollerar automatiskt vilka modeller som är installerade
+- Fallback till standardmodell om vald modell saknas
+- Automatisk validering av modellkompatibilitet
+
 ### Schemalagd körning
 
 #### macOS/Linux (cron):
@@ -197,6 +311,16 @@ Redigera `config.py` för att anpassa:
 ### AI-konfiguration
 
 Redigera `ai_config.py` för AI-inställningar:
+
+#### **Ollama-konfiguration:**
+```python
+# I ai_config.py
+AI_TYPE = "lokal"
+LOKAL_AI_MODEL = "ollama"
+
+# I ollama_config.py kan du ändra standardmodell
+DEFAULT_OLLAMA_MODEL = "mistral:7b-instruct"  # Ändra till önskad modell
+```
 
 ```python
 # AI-typ
@@ -412,7 +536,9 @@ Använd debug-verktygen i webbgränssnittet:
   - Sentence Transformer: ~117MB
   - Swedish BERT: ~438MB
   - Multilingual BERT: ~1.1GB
+  - Ollama-modeller: 1.7GB - 39GB (beroende på modell)
 - **Lagringsutrymme**: ~2-5x originalfilens storlek (temporära bilder)
+- **Minneskrav för Ollama**: 4GB - 32GB RAM (beroende på modell)
 
 ## 🔒 Säkerhet
 
@@ -440,6 +566,15 @@ A: Kontrollera att rätt AI_TYPE är vald i ai_config.py och att alla beroenden 
 **Q: Hur byter jag mellan olika AI-modeller?**
 A: Använd "Lokal AI-kontroller" i webbgränssnittet eller ändra LOKAL_AI_MODEL i ai_config.py.
 
+**Q: Hur installerar jag Ollama-modeller?**
+A: Använd `python ollama_manager.py install <modellnamn>` eller webbgränssnittet på `/ollama`.
+
+**Q: Vilken Ollama-modell ska jag välja?**
+A: Börja med `mistral:7b-instruct` för bästa balans mellan kvalitet och hastighet.
+
+**Q: Ollama startar inte - vad gör jag?**
+A: Kör `ollama serve` i en terminal och håll den igång, eller starta som tjänst.
+
 **Q: Kan jag använda programmet utan internet?**
 A: Ja, med lokala AI-modeller fungerar allt offline efter första nedladdningen.
 
@@ -459,6 +594,11 @@ Detta program är utvecklat för intern användning. Se till att följa relevant
 
 - ✅ AI-driven verksamhetsidentifiering
 - ✅ Stöd för lokala AI-modeller
+- ✅ **Ollama-integration** med stöd för 8+ modeller
+- ✅ **Ollama-modellhantering** via webbgränssnitt och kommandoradsverktyg
+- ✅ **Automatisk modellvalidering** och fallback
+- ✅ **Förbättrad PDF-konvertering** med Poppler-stöd
+- ✅ **Virtuell miljökontroll** för säker körning
 - ✅ Omdirigering av osäkra remisser
 - ✅ Förbättrad kontextbaserad analys
 - ✅ Debug-verktyg för felsökning
