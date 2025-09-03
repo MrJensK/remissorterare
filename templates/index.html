@@ -122,6 +122,24 @@
                                     <p class="mt-2">Laddar osakert remisser...</p>
                                 </div>
                             </div>
+                            
+                            <!-- AI-förslag från PDF-sektion -->
+                            <div class="row mt-3" id="ai-förslag-pdf-sektion" style="display: none;">
+                                <div class="col-12">
+                                    <div class="alert alert-info">
+                                        <h6><i class="fas fa-lightbulb me-2"></i>AI-förslag från PDF: <span id="ai-förslag-pdf-namn"></span></h6>
+                                        <div id="ai-förslag-pdf-content"></div>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-success me-2" onclick="användAIFörslagFrånPDF()">
+                                                <i class="fas fa-check me-2"></i>Använd förslag
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="döljAIFörslagFrånPDF()">
+                                                <i class="fas fa-times me-2"></i>Avbryt
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -174,6 +192,79 @@
                 </div>
             </div>
 
+            <!-- Verksamhetshantering -->
+            <div class="row mb-4" id="verksamhetshantering">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5><i class="fas fa-building me-2"></i>Verksamhetshantering</h5>
+                            <button class="btn btn-sm btn-outline-primary" onclick="laddaVerksamheter()">
+                                <i class="fas fa-sync-alt me-2"></i>Uppdatera
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <!-- Lägg till ny verksamhet -->
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="ny-verksamhet-namn" class="form-label">Verksamhetsnamn:</label>
+                                    <input type="text" class="form-control" id="ny-verksamhet-namn" 
+                                           placeholder="t.ex. Dermatologi">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ny-verksamhet-nyckelord" class="form-label">Nyckelord (kommaseparerade):</label>
+                                    <input type="text" class="form-control" id="ny-verksamhet-nyckelord" 
+                                           placeholder="hud, eksem, psoriasis, melanom, akne">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">&nbsp;</label>
+                                    <div>
+                                        <button class="btn btn-success" onclick="läggTillVerksamhet()">
+                                            <i class="fas fa-plus me-2"></i>Lägg till
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- AI-förslag sektion -->
+                            <div class="row mb-3" id="ai-förslag-sektion" style="display: none;">
+                                <div class="col-12">
+                                    <div class="alert alert-info">
+                                        <h6><i class="fas fa-lightbulb me-2"></i>AI-förslag på ny verksamhet</h6>
+                                        <div id="ai-förslag-content"></div>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-success me-2" onclick="användAIFörslag()">
+                                                <i class="fas fa-check me-2"></i>Använd förslag
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary" onclick="döljAIFörslag()">
+                                                <i class="fas fa-times me-2"></i>Avbryt
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <button class="btn btn-info" onclick="fåAIFörslag()">
+                                        <i class="fas fa-robot me-2"></i>Få AI-förslag baserat på textanalys
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Lista befintliga verksamheter -->
+                            <div id="verksamheter-content">
+                                <div class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Laddar...</span>
+                                    </div>
+                                    <p class="mt-2">Laddar verksamheter...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- AI Status och Konfiguration -->
             <div class="row mb-4">
                 <div class="col-12">
@@ -199,9 +290,11 @@
                                     <div class="col-md-6">
                                         <label for="modell-val" class="form-label">Välj AI-modell:</label>
                                         <select class="form-select" id="modell-val">
-                                            <option value="sentence_transformer">Sentence Transformer (117MB) - Snabb</option>
-                                            <option value="swedish_bert">Svensk BERT (438MB) - Bättre svenska</option>
-                                            <option value="multilingual_bert">Multilingual BERT (1.1GB) - Bästa kvalitet</option>
+                                            <option value="ollama">Ollama (Llama 2) - Snabb & effektiv</option>
+                                            <option value="sentence_transformer">Sentence Transformer (117MB) - AI-driven</option>
+                                            <option value="swedish_bert">Svensk BERT (438MB) - Högsta precision</option>
+                                            <option value="multilingual_bert">Multilingual BERT (1.1GB) - Många språk</option>
+                                            <option value="openai_local">Lokal OpenAI-server - Kompatibel</option>
                                         </select>
                                     </div>
                                     <div class="col-md-6">

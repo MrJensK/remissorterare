@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room
 import uuid
 
 from remiss_sorterare import RemissSorterare
@@ -733,12 +733,16 @@ def api_byt_lokal_ai_modell():
             if resultat:
                 return jsonify({
                     'success': True,
-                    'meddelande': f'Modell bytt till: {ny_modell}'
+                    'meddelande': f'Modell bytt till: {ny_modell}',
+                    'ny_modell': ny_modell
                 })
             else:
+                # Hämta aktuell modell efter misslyckat byte
+                aktuell_modell = web_sorterare.sorterare.ai_identifierare.model_type
                 return jsonify({
                     'success': False,
-                    'error': f'Kunde inte byta till modell: {ny_modell}'
+                    'error': f'Kunde inte byta till modell: {ny_modell}',
+                    'ny_modell': aktuell_modell
                 }), 500
         else:
             return jsonify({
@@ -758,6 +762,400 @@ def download_file(filename):
     """Låter användare ladda ner bearbetade filer"""
     return send_from_directory('output', filename)
 
+@app.route('/api/verksamheter', methods=['GET'])
+def api_verksamheter():
+    """API för att hämta alla verksamheter"""
+    try:
+        from config import VERKSAMHETER
+        return jsonify({
+            'success': True,
+            'verksamheter': VERKSAMHETER
+        })
+    except Exception as e:
+        logger.error(f"Fel vid hämtning av verksamheter: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/lägg_till_verksamhet', methods=['POST'])
+def api_lägg_till_verksamhet():
+    """API för att lägga till en ny verksamhet"""
+    try:
+        data = request.get_json()
+        verksamhet_namn = data.get('namn', '').strip()
+        nyckelord = data.get('nyckelord', [])
+        
+        if not verksamhet_namn:
+            return jsonify({
+                'success': False,
+                'error': 'Verksamhetsnamn krävs'
+            }), 400
+        
+        if not nyckelord:
+            return jsonify({
+                'success': False,
+                'error': 'Minst ett nyckelord krävs'
+            }), 400
+        
+        # Importera config dynamiskt
+        import config
+        import importlib
+        
+        # Lägg till verksamheten i config
+        if verksamhet_namn not in config.VERKSAMHETER:
+            config.VERKSAMHETER[verksamhet_namn] = nyckelord
+            
+            # Skapa output-mapp för den nya verksamheten
+            output_mapp = Path(f'output/{verksamhet_namn}')
+            output_mapp.mkdir(exist_ok=True)
+            
+            # Uppdatera ML-identifieraren om den finns
+            try:
+                web_sorterare = WebRemissSorterare()
+                if hasattr(web_sorterare.sorterare, 'ml_identifierare'):
+                    # Träna om ML-modellen med den nya verksamheten
+                    web_sorterare.ml_identifierare.träna_modell()
+                    logger.info(f"ML-modell tränad om med ny verksamhet: {verksamhet_namn}")
+            except Exception as e:
+                logger.warning(f"Kunde inte träna om ML-modellen: {e}")
+            
+            logger.info(f"Ny verksamhet tillagd: {verksamhet_namn} med {len(nyckelord)} nyckelord")
+            
+            return jsonify({
+                'success': True,
+                'meddelande': f'Verksamhet "{verksamhet_namn}" tillagd framgångsrikt',
+                'verksamhet': {
+                    'namn': verksamhet_namn,
+                    'nyckelord': nyckelord
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Verksamhet "{verksamhet_namn}" finns redan'
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"Fel vid tillägg av verksamhet: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ta_bort_verksamhet', methods=['POST'])
+def api_ta_bort_verksamhet():
+    """API för att ta bort en verksamhet"""
+    try:
+        data = request.get_json()
+        verksamhet_namn = data.get('namn', '').strip()
+        
+        if not verksamhet_namn:
+            return jsonify({
+                'success': False,
+                'error': 'Verksamhetsnamn krävs'
+            }), 400
+        
+        import config
+        
+        if verksamhet_namn in config.VERKSAMHETER:
+            # Ta bort från config
+            del config.VERKSAMHETER[verksamhet_namn]
+            
+            # Flytta alla filer från den verksamheten till "osakert"
+            verksamhet_mapp = Path(f'output/{verksamhet_namn}')
+            osakert_mapp = Path('output/osakert')
+            
+            if verksamhet_mapp.exists():
+                for fil in verksamhet_mapp.iterdir():
+                    if fil.is_file():
+                        # Flytta till osakert
+                        ny_sökväg = osakert_mapp / fil.name
+                        fil.rename(ny_sökväg)
+                        logger.info(f"Flyttade {fil.name} till osakert")
+                
+                # Ta bort den tomma mappen
+                verksamhet_mapp.rmdir()
+            
+            logger.info(f"Verksamhet borttagen: {verksamhet_namn}")
+            
+            return jsonify({
+                'success': True,
+                'meddelande': f'Verksamhet "{verksamhet_namn}" borttagen framgångsrikt'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Verksamhet "{verksamhet_namn}" finns inte'
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"Fel vid borttagning av verksamhet: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/verksamhet_fil_antal')
+def api_verksamhet_fil_antal():
+    """API för att räkna antal filer per verksamhet"""
+    try:
+        verksamhet = request.args.get('verksamhet', '')
+        
+        if not verksamhet:
+            return jsonify({
+                'success': False,
+                'error': 'Verksamhetsnamn krävs'
+            }), 400
+        
+        verksamhet_mapp = Path(f'output/{verksamhet}')
+        
+        if not verksamhet_mapp.exists():
+            return jsonify({
+                'success': True,
+                'antal': 0
+            })
+        
+        # Räkna PDF-filer
+        pdf_filer = list(verksamhet_mapp.glob('*.pdf'))
+        
+        return jsonify({
+            'success': True,
+            'antal': len(pdf_filer)
+        })
+        
+    except Exception as e:
+        logger.error(f"Fel vid räkning av filer för verksamhet {verksamhet}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ai_förslag_verksamhet', methods=['POST'])
+def api_ai_förslag_verksamhet():
+    """API för att få AI-förslag på nya verksamheter baserat på text"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+        pdf_namn = data.get('pdf_namn', '')  # Ny parameter för PDF-filnamn
+        
+        if not text:
+            return jsonify({
+                'success': False,
+                'error': 'Text krävs för analys'
+            }), 400
+        
+        from config import VERKSAMHETER
+        
+        # Använd lokal AI för att analysera texten
+        web_sorterare = WebRemissSorterare()
+        
+        if hasattr(web_sorterare.sorterare, 'ai_identifierare') and web_sorterare.sorterare.ai_identifierare:
+            # Få AI:s analys
+            verksamhet, sannolikhet = web_sorterare.sorterare.ai_identifierare.identifiera_verksamhet(text)
+            
+            # Kontrollera om AI föreslår en verksamhet som inte finns
+            if verksamhet not in VERKSAMHETER and verksamhet != "Okänd":
+                # Skapa förslag baserat på textanalys
+                förslag = skapa_verksamhets_förslag(text, verksamhet)
+                
+                return jsonify({
+                    'success': True,
+                    'ai_verksamhet': verksamhet,
+                    'sannolikhet': sannolikhet,
+                    'förslag': förslag,
+                    'meddelande': f'AI föreslår ny verksamhet: {verksamhet}',
+                    'pdf_namn': pdf_namn
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'ai_verksamhet': verksamhet,
+                    'sannolikhet': sannolikhet,
+                    'förslag': None,
+                    'meddelande': f'AI identifierade befintlig verksamhet: {verksamhet}',
+                    'pdf_namn': pdf_namn
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'AI-identifierare inte tillgänglig'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Fel vid AI-förslag på verksamhet: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ai_förslag_från_pdf', methods=['POST'])
+def api_ai_förslag_från_pdf():
+    """API för att få AI-förslag på nya verksamheter baserat på uppladdad PDF"""
+    try:
+        data = request.get_json()
+        pdf_namn = data.get('pdf_namn', '').strip()
+        
+        if not pdf_namn:
+            return jsonify({
+                'success': False,
+                'error': 'PDF-filnamn krävs'
+            }), 400
+        
+        from config import VERKSAMHETER
+        
+        # Hitta PDF-filen i osakert-mappen
+        pdf_sökväg = Path(f'output/osakert/{pdf_namn}')
+        
+        if not pdf_sökväg.exists():
+            return jsonify({
+                'success': False,
+                'error': f'PDF-fil {pdf_namn} hittades inte'
+            }), 404
+        
+        # Använd RemissSorterare för att extrahera text från PDF
+        web_sorterare = WebRemissSorterare()
+        
+        try:
+            # Konvertera PDF till bilder
+            bilder = web_sorterare.sorterare.pdf_till_bilder(pdf_sökväg)
+            if not bilder:
+                return jsonify({
+                    'success': False,
+                    'error': 'Kunde inte konvertera PDF till bilder'
+                }), 500
+            
+            # Extrahera text med OCR
+            text = web_sorterare.sorterare.extrahera_text_med_ocr(bilder)
+            if not text.strip():
+                return jsonify({
+                    'success': False,
+                    'error': 'Ingen text kunde extraheras från PDF'
+                }), 500
+            
+            # Använd AI för att analysera texten
+            if hasattr(web_sorterare.sorterare, 'ai_identifierare') and web_sorterare.sorterare.ai_identifierare:
+                verksamhet, sannolikhet = web_sorterare.sorterare.ai_identifierare.identifiera_verksamhet(text)
+                
+                # Kontrollera om AI föreslår en verksamhet som inte finns
+                if verksamhet not in VERKSAMHETER and verksamhet != "Okänd":
+                    # Skapa förslag baserat på textanalys
+                    förslag = skapa_verksamhets_förslag(text, verksamhet)
+                    
+                    return jsonify({
+                        'success': True,
+                        'ai_verksamhet': verksamhet,
+                        'sannolikhet': sannolikhet,
+                        'förslag': förslag,
+                        'meddelande': f'AI föreslår ny verksamhet: {verksamhet}',
+                        'pdf_namn': pdf_namn,
+                        'extraherad_text': text[:500] + "..." if len(text) > 500 else text  # Visa första 500 tecken
+                    })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'ai_verksamhet': verksamhet,
+                        'sannolikhet': sannolikhet,
+                        'förslag': None,
+                        'meddelande': f'AI identifierade befintlig verksamhet: {verksamhet}',
+                        'pdf_namn': pdf_namn,
+                        'extraherad_text': text[:500] + "..." if len(text) > 500 else text
+                    })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'AI-identifierare inte tillgänglig'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"Fel vid bearbetning av PDF {pdf_namn}: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Fel vid bearbetning av PDF: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Fel vid AI-förslag från PDF: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def skapa_verksamhets_förslag(text: str, föreslagen_verksamhet: str) -> dict:
+    """Skapar förslag på ny verksamhet baserat på text och AI-analys"""
+    try:
+        # Extrahera relevanta termer från texten
+        text_lower = text.lower()
+        
+        # Sök efter medicinska termer som kan indikera verksamhet
+        medicinska_termer = []
+        
+        # Vanliga medicinska suffix
+        suffix_list = ['ologi', 'iatri', 'ologi', 'ologi', 'ologi']
+        
+        # Sök efter termer som slutar med medicinska suffix
+        import re
+        for suffix in suffix_list:
+            pattern = r'\b\w+' + suffix + r'\b'
+            matches = re.findall(pattern, text_lower)
+            medicinska_termer.extend(matches)
+        
+        # Sök efter specifika medicinska områden
+        områden = {
+            'hud': ['hud', 'dermatologi', 'eksem', 'psoriasis', 'melanom', 'akne'],
+            'ögon': ['öga', 'ögon', 'syn', 'katarakt', 'glaukom', 'oftalmologi'],
+            'öron': ['öra', 'hörsel', 'tinnitus', 'otologi', 'otorinolaryngologi'],
+            'hjärta': ['hjärta', 'kardiologi', 'arytmi', 'infarkt', 'hjärtfel'],
+            'hjärna': ['hjärna', 'neurologi', 'stroke', 'epilepsi', 'parkinson'],
+            'mage': ['mage', 'gastroenterologi', 'ulcus', 'kolit', 'lever'],
+            'lungor': ['lunga', 'pneumologi', 'astma', 'kronisk', 'bronkit'],
+            'ben': ['ben', 'ortopedi', 'fraktur', 'led', 'artros'],
+            'urin': ['urin', 'urologi', 'prostata', 'njure', 'urinblåsa'],
+            'gynekologi': ['livmoder', 'äggstockar', 'menstruation', 'gynekologi']
+        }
+        
+        # Hitta matchande områden
+        matchande_områden = []
+        for område, termer in områden.items():
+            if any(term in text_lower for term in termer):
+                matchande_områden.append(område)
+        
+        # Skapa förslag på nyckelord
+        föreslagna_nyckelord = []
+        
+        # Lägg till termer från matchande områden
+        for område in matchande_områden:
+            föreslagna_nyckelord.extend(områden[område][:3])  # Ta första 3 termerna
+        
+        # Lägg till unika termer från texten
+        unika_termer = set()
+        for term in medicinska_termer:
+            if term not in föreslagna_nyckelord:
+                unika_termer.add(term)
+        
+        föreslagna_nyckelord.extend(list(unika_termer)[:5])  # Max 5 extra termer
+        
+        # Ta bort duplicerade och begränsa längden
+        föreslagna_nyckelord = list(dict.fromkeys(föreslagna_nyckelord))[:8]
+        
+        return {
+            'namn': föreslagen_verksamhet,
+            'nyckelord': föreslagna_nyckelord,
+            'motivering': f'AI identifierade {föreslagen_verksamhet} baserat på textanalys',
+            'matchande_områden': matchande_områden,
+            'medicinska_termer': medicinska_termer
+        }
+        
+    except Exception as e:
+        logger.error(f"Fel vid skapande av verksamhetsförslag: {e}")
+        return {
+            'namn': föreslagen_verksamhet,
+            'nyckelord': ['medicinsk', 'specialist', 'remiss'],
+            'motivering': f'AI föreslår {föreslagen_verksamhet}',
+            'matchande_områden': [],
+            'medicinska_termer': []
+        }
+
 # SocketIO-händelser
 @socketio.on('connect')
 def handle_connect():
@@ -773,7 +1171,7 @@ def handle_join_session(data):
     """Hanterar att klienten ansluter till en session"""
     session_id = data.get('session_id')
     if session_id:
-        socketio.join_room(session_id)
+        join_room(session_id)
         logger.info(f"Klient ansluten till session: {session_id}")
         
         # Skicka befintlig status om den finns

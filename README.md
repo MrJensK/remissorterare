@@ -20,18 +20,30 @@ Ett avancerat Python-program för automatisk hantering av inscannade remisser (P
 
 ## 🛠️ Installation
 
-### Snabbinstallation
+### Snabbinstallation (rekommenderat)
 
 ```bash
 # Klona eller ladda ner projektet
 cd remissorterare
 
 # Gör installationsskriptet körbart
-chmod +x install_local_ai.sh
+chmod +x install.sh
 
 # Kör installationsskriptet
-./install_local_ai.sh
+./install.sh
 ```
+
+**Vad installationsskriptet gör automatiskt:**
+- ✅ Installerar Python 3.12 via pyenv
+- ✅ Installerar Tesseract OCR med svenska språkstöd
+- ✅ Skapar virtuell Python-miljö
+- ✅ Installerar alla Python-beroenden
+- ✅ Installerar lokala AI-bibliotek
+- ✅ Valfritt OpenAI-stöd
+- ✅ Skapar mappstruktur och verksamhetsmappar
+- ✅ Konfigurerar AI-inställningar
+- ✅ Testar installationen
+- ✅ Skapar startskript
 
 ### Manuell installation
 
@@ -60,6 +72,13 @@ Ladda ner från: https://github.com/UB-Mannheim/tesseract/wiki
 
 #### Installera Python-beroenden
 
+**Automatisk installation (rekommenderat):**
+```bash
+# Kör det kompletta installationsskriptet
+./install.sh
+```
+
+**Manuell installation:**
 ```bash
 # Grundläggande beroenden
 pip install pytesseract pdf2image Pillow opencv-python numpy python-dateutil scikit-learn joblib Flask Flask-SocketIO Werkzeug
@@ -108,7 +127,7 @@ För att använda OpenAI:
 
 ### Grundläggande användning
 
-1. **Skapa mappstruktur**:
+1. **Mappstrukturen skapas automatiskt** av installationsskriptet:
    ```
    remissorterare/
    ├── input/          # Lägg PDF-filer här
@@ -118,6 +137,7 @@ För att använda OpenAI:
    │   ├── Kardiologi/
    │   ├── Gynekologi/
    │   └── osakert/    # Osäkra remisser
+   ├── models/         # AI-modeller och cache
    └── remiss_sorterare.py
    ```
 
@@ -125,14 +145,23 @@ För att använda OpenAI:
 
    **Kommando-rad version**:
    ```bash
+   # Använd det automatiskt skapade startskriptet
+   ./start.sh
+   
+   # Eller starta manuellt
+   source venv/bin/activate
    python remiss_sorterare.py
    ```
 
    **Web-baserat gränssnitt**:
    ```bash
+   # Använd det automatiskt skapade startskriptet
+   ./start_web.sh
+   
+   # Eller starta manuellt
+   source venv/bin/activate
    python web_app.py
    ```
-   Öppna sedan webbläsaren på: http://localhost:5000
 
 ### Schemalagd körning
 
@@ -142,7 +171,10 @@ För att använda OpenAI:
 crontab -e
 
 # Lägg till för körning varje timme
-0 * * * * cd /sökväg/till/remissorterare && python remiss_sorterare.py
+0 * * * * cd /sökväg/till/remissorterare && ./venv/bin/python run_scheduled.py
+
+# Eller använd startskriptet
+0 * * * * cd /sökväg/till/remissorterare && ./start.sh
 ```
 
 #### Windows (Task Scheduler):
@@ -272,6 +304,19 @@ Det nya webbgränssnittet erbjuder:
 - **ML-träning**: Träna modellen direkt från gränssnittet
 - **Responsivt design**: Fungerar på alla enheter
 
+### Starta webbgränssnittet
+
+```bash
+# Använd det automatiskt skapade startskriptet
+./start_web.sh
+
+# Eller starta manuellt
+source venv/bin/activate
+python web_app.py
+```
+
+Öppna sedan webbläsaren på: http://localhost:5000
+
 ## 📤 Output-format
 
 ### .dat-filer
@@ -320,6 +365,7 @@ Programmet skapar detaljerade loggar i `remiss_sorterare.log`:
 1. **Tesseract inte hittas**:
    - Kontrollera att Tesseract är installerat
    - Lägg till Tesseract i PATH-variabeln
+   - **Lösning**: Kör `./install.sh` igen för att installera Tesseract
 
 2. **OCR ger dåliga resultat**:
    - Kontrollera bildkvalitet på PDF:erna
@@ -336,6 +382,12 @@ Programmet skapar detaljerade loggar i `remiss_sorterare.log`:
    - Kontrollera internetanslutning (för första nedladdningen)
    - Verifiera att rätt AI-typ är vald i ai_config.py
    - Kontrollera att alla AI-bibliotek är installerade
+   - **Lösning**: Kör `./install.sh` igen för att installera AI-bibliotek
+
+5. **Installationsproblem**:
+   - **Lösning**: Kör `./install.sh` för att installera allt automatiskt
+   - Kontrollera att du har Python 3.8+ installerat
+   - För Linux: Kontrollera att du har sudo-rättigheter
 
 ### Debug-läge
 
@@ -378,6 +430,7 @@ Använd debug-verktygen i webbgränssnittet:
 2. **Verifiera AI-konfiguration** i ai_config.py
 3. **Testa med en enkel PDF** först
 4. **Använd debug-verktygen** i webbgränssnittet
+5. **Kör installationsskriptet igen** om du har problem: `./install.sh`
 
 ### Vanliga frågor
 
@@ -389,6 +442,12 @@ A: Använd "Lokal AI-kontroller" i webbgränssnittet eller ändra LOKAL_AI_MODEL
 
 **Q: Kan jag använda programmet utan internet?**
 A: Ja, med lokala AI-modeller fungerar allt offline efter första nedladdningen.
+
+**Q: Hur installerar jag allt enkelt?**
+A: Kör bara `./install.sh` - det installerar allt automatiskt inklusive AI-stöd.
+
+**Q: Vad gör installationsskriptet?**
+A: Det installerar Python 3.12, Tesseract OCR, alla Python-beroenden, AI-bibliotek, skapar mappstruktur och konfigurerar allt automatiskt.
 
 ## 📄 Licens
 
@@ -406,3 +465,6 @@ Detta program är utvecklat för intern användning. Se till att följa relevant
 - ✅ Webbgränssnitt med realtidsstatus
 - ✅ ML-träning med omfördelningsdata
 - ✅ Stöd för fler verksamheter (Gynekologi, etc.)
+- ✅ Komplett installationsskript med AI-stöd
+- ✅ Automatisk AI-konfiguration
+- ✅ Webbstartskript för enklare användning

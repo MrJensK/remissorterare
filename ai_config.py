@@ -16,8 +16,8 @@ AI_CONFIDENCE_THRESHOLD = 70  # Minsta sannolikhet för att använda AI-resultat
 
 # Lokala AI-modeller
 LOKAL_AI_ENABLED = True
-LOKAL_AI_MODEL = "sentence_transformer"  # "sentence_transformer", "swedish_bert", "multilingual_bert"
-LOKAL_AI_DOWNLOAD_MODELS = True  # Ladda ner modeller automatiskt
+LOKAL_AI_MODEL = "ollama"  # "ollama", "sentence_transformer", "swedish_bert", "multilingual_bert", "openai_local"
+LOKAL_AI_DOWNLOAD_MODELS = True  # Sätt till True för AI-modeller
 LOKAL_AI_CACHE_DIR = "models/local_ai"  # Cache-mapp för lokala modeller
 
 # OpenAI-inställningar (endast om AI_TYPE = "openai")

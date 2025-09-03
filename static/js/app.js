@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initSocket();
     laddaOsakertRemisser();
     laddaAIStatus();
+    laddaVerksamheter();
 });
 
 // Initiera drag and drop
@@ -322,9 +323,14 @@ function displayOsakertRemisser(remisser) {
                     </select>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-primary" onclick="omfördelaRemiss('${remiss.pdf_namn}', '${remiss.pdf_namn.replace(/[^a-zA-Z0-9]/g, '_')}')">
-                        <i class="fas fa-arrow-right me-1"></i>Omdirigera
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-primary" onclick="omfördelaRemiss('${remiss.pdf_namn}', '${remiss.pdf_namn.replace(/[^a-zA-Z0-9]/g, '_')}')">
+                            <i class="fas fa-arrow-right me-1"></i>Omdirigera
+                        </button>
+                        <button class="btn btn-sm btn-info" onclick="fåAIFörslagFrånPDF('${remiss.pdf_namn}')" title="Få AI-förslag på verksamhet">
+                            <i class="fas fa-robot me-1"></i>AI-förslag
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -865,8 +871,17 @@ function bytLokalAIModell() {
             setTimeout(() => {
                 laddaLokalAIStatus();
             }, 2000);
+            
+            // Uppdatera modellvalet baserat på svaret
+            if (data.ny_modell) {
+                modellVal.value = data.ny_modell;
+            }
         } else {
             showToast(`Fel: ${data.error}`, 'error');
+            // Återställ till tidigare modell om byte misslyckades
+            setTimeout(() => {
+                laddaLokalAIStatus();
+            }, 1000);
         }
     })
     .catch(error => {
@@ -1011,3 +1026,444 @@ const VERKSAMHETER = {
     "Oftalmologi": ["oftalmologi", "oftalmologisk", "öga", "ögon", "syn", "katarakt"],
     "Otorinolaryngologi": ["otorinolaryngologi", "ent", "öra", "näsa", "hals", "tonsillit"]
 };
+
+// Verksamhetshantering
+function laddaVerksamheter() {
+    const contentDiv = document.getElementById('verksamheter-content');
+    
+    contentDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Laddar...</span>
+            </div>
+            <p class="mt-2">Laddar verksamheter...</p>
+        </div>
+    `;
+    
+    fetch('/api/verksamheter')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayVerksamheter(data.verksamheter);
+            } else {
+                contentDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Fel vid laddning av verksamheter: ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Fel vid laddning av verksamheter:', error);
+            contentDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Fel vid laddning av verksamheter: ${error.message}
+                </div>
+            `;
+        });
+}
+
+function displayVerksamheter(verksamheter) {
+    const contentDiv = document.getElementById('verksamheter-content');
+    
+    if (Object.keys(verksamheter).length === 0) {
+        contentDiv.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Inga verksamheter konfigurerade än.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="table-responsive"><table class="table table-striped">';
+    html += '<thead><tr><th>Verksamhet</th><th>Nyckelord</th><th>Antal filer</th><th>Åtgärder</th></tr></thead><tbody>';
+    
+    Object.entries(verksamheter).forEach(([namn, nyckelord]) => {
+        const nyckelordText = Array.isArray(nyckelord) ? nyckelord.join(', ') : nyckelord;
+        html += `
+            <tr>
+                <td><strong>${namn}</strong></td>
+                <td><small class="text-muted">${nyckelordText}</small></td>
+                <td>
+                    <span class="badge bg-secondary">Kontrollera...</span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="taBortVerksamhet('${namn}')">
+                        <i class="fas fa-trash me-1"></i>Ta bort
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table></div>';
+    contentDiv.innerHTML = html;
+    
+    // Uppdatera antal filer för varje verksamhet
+    Object.keys(verksamheter).forEach(namn => {
+        updateVerksamhetFilAntal(namn);
+    });
+}
+
+function updateVerksamhetFilAntal(verksamhetNamn) {
+    // Hitta raden för denna verksamhet
+    const rows = document.querySelectorAll('#verksamheter-content tbody tr');
+    rows.forEach(row => {
+        const verksamhetCell = row.querySelector('td:first-child strong');
+        if (verksamhetCell && verksamhetCell.textContent === verksamhetNamn) {
+            const antalCell = row.querySelector('td:nth-child(3)');
+            if (antalCell) {
+                // Kontrollera om mappen finns och räkna filer
+                fetch(`/api/verksamhet_fil_antal?verksamhet=${encodeURIComponent(verksamhetNamn)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            antalCell.innerHTML = `<span class="badge bg-primary">${data.antal} filer</span>`;
+                        } else {
+                            antalCell.innerHTML = `<span class="badge bg-secondary">0 filer</span>`;
+                        }
+                    })
+                    .catch(() => {
+                        antalCell.innerHTML = `<span class="badge bg-secondary">0 filer</span>`;
+                    });
+            }
+        }
+    });
+}
+
+function läggTillVerksamhet() {
+    const namnInput = document.getElementById('ny-verksamhet-namn');
+    const nyckelordInput = document.getElementById('ny-verksamhet-nyckelord');
+    
+    const namn = namnInput.value.trim();
+    const nyckelordText = nyckelordInput.value.trim();
+    
+    if (!namn) {
+        showToast('Ange verksamhetsnamn', 'warning');
+        return;
+    }
+    
+    if (!nyckelordText) {
+        showToast('Ange minst ett nyckelord', 'warning');
+        return;
+    }
+    
+    // Konvertera kommaseparerade nyckelord till array
+    const nyckelord = nyckelordText.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    
+    if (nyckelord.length === 0) {
+        showToast('Ange minst ett nyckelord', 'warning');
+        return;
+    }
+    
+    // Kontrollera om verksamheten redan finns
+    if (VERKSAMHETER[namn]) {
+        showToast(`Verksamhet "${namn}" finns redan`, 'warning');
+        return;
+    }
+    
+    showToast(`Lägger till verksamhet "${namn}"...`, 'info');
+    
+    fetch('/api/lägg_till_verksamhet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            namn: namn,
+            nyckelord: nyckelord
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.meddelande, 'success');
+            
+            // Rensa input-fälten
+            namnInput.value = '';
+            nyckelordInput.value = '';
+            
+            // Uppdatera VERKSAMHETER-objektet
+            VERKSAMHETER[namn] = nyckelord;
+            
+            // Uppdatera listan
+            laddaVerksamheter();
+            
+            // Uppdatera statistik
+            loadStatistik();
+            
+            // Uppdatera osakert-remisser (kan ha nya verksamheter att välja mellan)
+            laddaOsakertRemisser();
+        } else {
+            showToast(`Fel: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fel vid tillägg av verksamhet:', error);
+        showToast('Fel vid tillägg av verksamhet', 'error');
+    });
+}
+
+function taBortVerksamhet(verksamhetNamn) {
+    if (!confirm(`Är du säker på att du vill ta bort verksamheten "${verksamhetNamn}"?\n\nAlla filer i denna verksamhet kommer att flyttas till "osakert".`)) {
+        return;
+    }
+    
+    showToast(`Tar bort verksamhet "${verksamhetNamn}"...`, 'info');
+    
+    fetch('/api/ta_bort_verksamhet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            namn: verksamhetNamn
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.meddelande, 'success');
+            
+            // Ta bort från VERKSAMHETER-objektet
+            delete VERKSAMHETER[verksamhetNamn];
+            
+            // Uppdatera listan
+            laddaVerksamheter();
+            
+            // Uppdatera statistik
+            loadStatistik();
+            
+            // Uppdatera osakert-remisser
+            laddaOsakertRemisser();
+        } else {
+            showToast(`Fel: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fel vid borttagning av verksamhet:', error);
+        showToast('Fel vid borttagning av verksamhet', 'error');
+    });
+}
+
+// AI-förslag på verksamheter
+let currentAIFörslag = null;
+
+function fåAIFörslag() {
+    // Använd text från textanalys-sektionen om den finns
+    const textInput = document.getElementById('text-input');
+    const text = textInput ? textInput.value.trim() : '';
+    
+    if (!text) {
+        showToast('Ange text i textanalys-sektionen först, eller klistra in text från en remiss', 'warning');
+        return;
+    }
+    
+    showToast('Analyserar text med AI för att föreslå verksamheter...', 'info');
+    
+    fetch('/api/ai_förslag_verksamhet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: text })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.förslag) {
+                // Visa AI-förslag
+                currentAIFörslag = data.förslag;
+                displayAIFörslag(data);
+                showToast(data.meddelande, 'success');
+            } else {
+                showToast(data.meddelande, 'info');
+            }
+        } else {
+            showToast(`Fel: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fel vid AI-förslag:', error);
+        showToast('Fel vid AI-förslag', 'error');
+    });
+}
+
+function displayAIFörslag(data) {
+    const förslagSektion = document.getElementById('ai-förslag-sektion');
+    const förslagContent = document.getElementById('ai-förslag-content');
+    
+    let html = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Föreslagen verksamhet:</h6>
+                <p><strong>${data.ai_verksamhet}</strong> (${data.sannolikhet.toFixed(1)}% sannolikhet)</p>
+                
+                <h6>Motivering:</h6>
+                <p>${data.förslag.motivering}</p>
+                
+                <h6>Matchande områden:</h6>
+                <p>${data.förslag.matchande_områden.join(', ') || 'Inga specifika områden identifierade'}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>Föreslagna nyckelord:</h6>
+                <div class="mb-2">
+                    ${data.förslag.nyckelord.map(nyckelord => 
+                        `<span class="badge bg-primary me-1 mb-1">${nyckelord}</span>`
+                    ).join('')}
+                </div>
+                
+                <h6>Medicinska termer hittade:</h6>
+                <p><small class="text-muted">${data.förslag.medicinska_termer.join(', ') || 'Inga medicinska termer identifierade'}</small></p>
+            </div>
+        </div>
+    `;
+    
+    förslagContent.innerHTML = html;
+    förslagSektion.style.display = 'block';
+}
+
+function användAIFörslag() {
+    if (!currentAIFörslag) {
+        showToast('Inget AI-förslag tillgängligt', 'warning');
+        return;
+    }
+    
+    // Fyll i formuläret med AI-förslaget
+    const namnInput = document.getElementById('ny-verksamhet-namn');
+    const nyckelordInput = document.getElementById('ny-verksamhet-nyckelord');
+    
+    namnInput.value = currentAIFörslag.namn;
+    nyckelordInput.value = currentAIFörslag.nyckelord.join(', ');
+    
+    // Dölj förslagssektionen
+    döljAIFörslag();
+    
+    // Visa bekräftelse
+    showToast(`AI-förslag använt: ${currentAIFörslag.namn}`, 'success');
+    
+    // Fokusera på namn-fältet
+    namnInput.focus();
+}
+
+function döljAIFörslag() {
+    const förslagSektion = document.getElementById('ai-förslag-sektion');
+    förslagSektion.style.display = 'none';
+    currentAIFörslag = null;
+}
+
+// AI-förslag från uppladdade PDF:er
+let currentAIFörslagFrånPDF = null;
+
+function fåAIFörslagFrånPDF(pdfNamn) {
+    if (!pdfNamn) {
+        showToast('PDF-filnamn saknas', 'warning');
+        return;
+    }
+    
+    showToast(`Analyserar PDF "${pdfNamn}" med AI för att föreslå verksamheter...`, 'info');
+    
+    fetch('/api/ai_förslag_från_pdf', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pdf_namn: pdfNamn })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.förslag) {
+                // Visa AI-förslag från PDF
+                currentAIFörslagFrånPDF = data;
+                displayAIFörslagFrånPDF(data);
+                showToast(data.meddelande, 'success');
+            } else {
+                showToast(data.meddelande, 'info');
+            }
+        } else {
+            showToast(`Fel: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fel vid AI-förslag från PDF:', error);
+        showToast('Fel vid AI-förslag från PDF', 'error');
+    });
+}
+
+function displayAIFörslagFrånPDF(data) {
+    const förslagSektion = document.getElementById('ai-förslag-pdf-sektion');
+    const förslagContent = document.getElementById('ai-förslag-pdf-content');
+    const förslagNamn = document.getElementById('ai-förslag-pdf-namn');
+    
+    förslagNamn.textContent = data.pdf_namn;
+    
+    let html = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Föreslagen verksamhet:</h6>
+                <p><strong>${data.ai_verksamhet}</strong> (${data.sannolikhet.toFixed(1)}% sannolikhet)</p>
+                
+                <h6>Motivering:</h6>
+                <p>${data.förslag.motivering}</p>
+                
+                <h6>Matchande områden:</h6>
+                <p>${data.förslag.matchande_områden.join(', ') || 'Inga specifika områden identifierade'}</p>
+                
+                <h6>Extraherad text (första 500 tecken):</h6>
+                <div class="bg-light p-2 rounded">
+                    <small class="text-muted">${data.extraherad_text}</small>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h6>Föreslagna nyckelord:</h6>
+                <div class="mb-2">
+                    ${data.förslag.nyckelord.map(nyckelord => 
+                        `<span class="badge bg-primary me-1 mb-1">${nyckelord}</span>`
+                    ).join('')}
+                </div>
+                
+                <h6>Medicinska termer hittade:</h6>
+                <p><small class="text-muted">${data.förslag.medicinska_termer.join(', ') || 'Inga medicinska termer identifierade'}</small></p>
+            </div>
+        </div>
+    `;
+    
+    förslagContent.innerHTML = html;
+    förslagSektion.style.display = 'block';
+}
+
+function användAIFörslagFrånPDF() {
+    if (!currentAIFörslagFrånPDF) {
+        showToast('Inget AI-förslag från PDF tillgängligt', 'warning');
+        return;
+    }
+    
+    // Fyll i formuläret med AI-förslaget
+    const namnInput = document.getElementById('ny-verksamhet-namn');
+    const nyckelordInput = document.getElementById('ny-verksamhet-nyckelord');
+    
+    namnInput.value = currentAIFörslagFrånPDF.förslag.namn;
+    nyckelordInput.value = currentAIFörslagFrånPDF.förslag.nyckelord.join(', ');
+    
+    // Dölj förslagssektionen
+    döljAIFörslagFrånPDF();
+    
+    // Visa bekräftelse
+    showToast(`AI-förslag från PDF använt: ${currentAIFörslagFrånPDF.förslag.namn}`, 'success');
+    
+    // Fokusera på namn-fältet
+    namnInput.focus();
+    
+    // Scrolla till verksamhetshanteringssektionen
+    document.querySelector('#verksamhetshantering').scrollIntoView({ behavior: 'smooth' });
+}
+
+function döljAIFörslagFrånPDF() {
+    const förslagSektion = document.getElementById('ai-förslag-pdf-sektion');
+    förslagSektion.style.display = 'none';
+    currentAIFörslagFrånPDF = null;
+}
