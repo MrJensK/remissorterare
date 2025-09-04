@@ -20,6 +20,9 @@ LOKAL_AI_MODEL = "ollama"  # "ollama", "sentence_transformer", "swedish_bert", "
 LOKAL_AI_DOWNLOAD_MODELS = True  # Sätt till True för AI-modeller
 LOKAL_AI_CACHE_DIR = "models/local_ai"  # Cache-mapp för lokala modeller
 
+# Ollama-specifika inställningar
+OLLAMA_MODEL = "qwen2.5vl:latest"  # Aktuell Ollama-modell
+
 # OpenAI-inställningar (endast om AI_TYPE = "openai")
 OPENAI_API_KEY: Optional[str] = os.getenv('OPENAI_API_KEY')
 OPENAI_MODEL: str = "gpt-3.5-turbo"

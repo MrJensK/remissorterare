@@ -19,9 +19,6 @@
                         <p class="mb-0">Automatisk hantering av inscannade remisser</p>
                     </div>
                     <div class="col-md-4 text-end">
-                        <a href="/ollama" class="btn btn-outline-light me-2">
-                            <i class="fas fa-robot me-2"></i>Ollama-modeller
-                        </a>
                         <button class="btn btn-outline-light" onclick="tränaML()">
                             <i class="fas fa-brain me-2"></i>Träna ML
                         </button>
@@ -308,6 +305,29 @@
                                             </button>
                                             <button class="btn btn-outline-info" onclick="laddaLokalAIStatus()">
                                                 <i class="fas fa-sync-alt me-2"></i>Uppdatera
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Ollama-modellval -->
+                            <div id="ollama-modellval" class="mt-3" style="display: none;">
+                                <hr>
+                                <h6><i class="fas fa-robot me-2"></i>Ollama-modellval</h6>
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <label for="ollama-modell-val" class="form-label">Välj Ollama-modell:</label>
+                                        <select class="form-select" id="ollama-modell-val">
+                                            <option value="">Laddar installerade modeller...</option>
+                                        </select>
+                                        <small class="form-text text-muted">Välj bland dina installerade Ollama-modeller</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">&nbsp;</label>
+                                        <div>
+                                            <button class="btn btn-outline-primary" onclick="bytOllamaModell()">
+                                                <i class="fas fa-exchange-alt me-2"></i>Byt Modell
                                             </button>
                                         </div>
                                     </div>

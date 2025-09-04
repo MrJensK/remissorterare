@@ -833,6 +833,11 @@ function laddaLokalAIStatus() {
                         </div>
                     `;
                 }
+                
+                // Om det är Ollama, ladda installerade modeller
+                if (data.modell === 'ollama') {
+                    laddaOllamaModeller();
+                }
             }
         })
         .catch(error => {
@@ -887,6 +892,80 @@ function bytLokalAIModell() {
     .catch(error => {
         console.error('Fel vid byte av modell:', error);
         showToast('Fel vid byte av modell', 'error');
+    });
+}
+
+// Ladda Ollama-modeller
+function laddaOllamaModeller() {
+    fetch('/api/ollama_installerade')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('ollama-modell-val');
+            
+            if (data.success && data.modeller && data.modeller.length > 0) {
+                // Rensa befintliga alternativ
+                select.innerHTML = '';
+                
+                // Lägg till installerade modeller
+                data.modeller.forEach(modell => {
+                    const option = document.createElement('option');
+                    option.value = modell;
+                    option.textContent = modell;
+                    select.appendChild(option);
+                });
+                
+                // Visa Ollama-modellval sektionen
+                document.getElementById('ollama-modellval').style.display = 'block';
+            } else {
+                // Dölj Ollama-modellval om inga modeller finns
+                document.getElementById('ollama-modellval').style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Fel vid hämtning av Ollama-modeller:', error);
+            // Dölj Ollama-modellval vid fel
+            document.getElementById('ollama-modellval').style.display = 'none';
+        });
+}
+
+// Byt Ollama-modell
+function bytOllamaModell() {
+    const modellVal = document.getElementById('ollama-modell-val');
+    const nyModell = modellVal.value;
+    
+    if (!nyModell) {
+        showToast('Välj en Ollama-modell först', 'warning');
+        return;
+    }
+    
+    if (!confirm(`Är du säker på att du vill byta till Ollama-modell: ${nyModell}?`)) {
+        return;
+    }
+    
+    showToast(`Bytter till Ollama-modell: ${nyModell}...`, 'info');
+    
+    fetch('/api/byt_ollama_modell', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ modell: nyModell })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.meddelande, 'success');
+            // Uppdatera AI-status
+            setTimeout(() => {
+                laddaAIStatus();
+            }, 2000);
+        } else {
+            showToast(`Fel: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fel vid byte av Ollama-modell:', error);
+        showToast('Fel vid byte av Ollama-modell', 'error');
     });
 }
 

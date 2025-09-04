@@ -249,10 +249,6 @@ def index():
     """Huvudsida"""
     return render_template('index.html')
 
-@app.route('/ollama')
-def ollama_page():
-    """Sida för hantering av Ollama-modeller"""
-    return render_template('ollama.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -698,13 +694,43 @@ def api_testa_ai():
             'error': str(e)
         }), 500
 
+def läs_ai_config_från_fil():
+    """Läs AI-konfiguration direkt från filen för att få senaste värden"""
+    try:
+        import os
+        config_file = 'ai_config.py'
+        if not os.path.exists(config_file):
+            return None, None, None
+        
+        with open(config_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Extrahera AI_TYPE
+        import re
+        ai_type_match = re.search(r'AI_TYPE\s*=\s*["\']([^"\']*)["\']', content)
+        ai_type = ai_type_match.group(1) if ai_type_match else None
+        
+        # Extrahera LOKAL_AI_MODEL
+        lokal_ai_model_match = re.search(r'LOKAL_AI_MODEL\s*=\s*["\']([^"\']*)["\']', content)
+        lokal_ai_model = lokal_ai_model_match.group(1) if lokal_ai_model_match else None
+        
+        # Extrahera OLLAMA_MODEL
+        ollama_model_match = re.search(r'OLLAMA_MODEL\s*=\s*["\']([^"\']*)["\']', content)
+        ollama_model = ollama_model_match.group(1) if ollama_model_match else None
+        
+        return ai_type, lokal_ai_model, ollama_model
+    except Exception as e:
+        logger.error(f"Fel vid läsning av AI-konfiguration: {e}")
+        return None, None, None
+
 @app.route('/api/lokal_ai_status')
 def api_lokal_ai_status():
     """API för att kontrollera lokal AI-status"""
     try:
-        from ai_config import AI_TYPE, LOKAL_AI_MODEL
+        # Läs konfiguration direkt från filen för att få senaste värden
+        ai_type, lokal_ai_model, ollama_model = läs_ai_config_från_fil()
         
-        if AI_TYPE != "lokal":
+        if not ai_type or ai_type != "lokal":
             return jsonify({
                 'success': False,
                 'error': 'Lokal AI är inte aktiverat i konfigurationen'
@@ -713,13 +739,16 @@ def api_lokal_ai_status():
         web_sorterare = WebRemissSorterare()
         if hasattr(web_sorterare.sorterare.ai_identifierare, 'få_modell_info'):
             modell_info = web_sorterare.sorterare.ai_identifierare.få_modell_info()
+            # Uppdatera modellnamnet med den senaste konfigurationen
+            if lokal_ai_model == "ollama" and ollama_model:
+                modell_info["namn"] = ollama_model
         else:
             modell_info = {"error": "Lokal AI-identifierare stöder inte denna funktion"}
         
         return jsonify({
             'success': True,
-            'ai_type': AI_TYPE,
-            'modell': LOKAL_AI_MODEL,
+            'ai_type': ai_type,
+            'modell': lokal_ai_model,
             'modell_info': modell_info
         })
         
@@ -812,28 +841,10 @@ def api_byt_lokal_ai_modell():
             'error': str(e)
         }), 500
 
-@app.route('/api/ollama_modeller')
-def api_ollama_modeller():
-    """API för att lista tillgängliga Ollama-modeller"""
-    try:
-        from ollama_config import OLLAMA_MODELS, RECOMMENDED_FOR_SWEDISH
-        
-        return jsonify({
-            'success': True,
-            'modeller': OLLAMA_MODELS,
-            'rekommenderade': RECOMMENDED_FOR_SWEDISH
-        })
-        
-    except Exception as e:
-        logger.error(f"Fel vid hämtning av Ollama-modeller: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 @app.route('/api/ollama_installerade')
 def api_ollama_installerade():
-    """API för att kontrollera vilka Ollama-modeller som är installerade"""
+    """API för att hämta installerade Ollama-modeller"""
     try:
         import requests
         
@@ -842,7 +853,7 @@ def api_ollama_installerade():
             models = response.json().get("models", [])
             return jsonify({
                 'success': True,
-                'installerade_modeller': [model['name'] for model in models]
+                'modeller': [model['name'] for model in models]
             })
         else:
             return jsonify({
@@ -853,14 +864,14 @@ def api_ollama_installerade():
     except requests.exceptions.RequestException:
         return jsonify({
             'success': False,
-            'error': 'Ollama är inte igång'
-        }), 500
+            'modeller': []
+        })
     except Exception as e:
         logger.error(f"Fel vid kontroll av installerade Ollama-modeller: {e}")
         return jsonify({
             'success': False,
-            'error': str(e)
-        }), 500
+            'modeller': []
+        })
 
 @app.route('/api/byt_ollama_modell', methods=['POST'])
 def api_byt_ollama_modell():
@@ -875,34 +886,37 @@ def api_byt_ollama_modell():
                 'error': 'Ingen modell angiven'
             }), 400
         
-        from ollama_config import validate_model_name
-        if not validate_model_name(ny_modell):
-            return jsonify({
-                'success': False,
-                'error': f'Ogiltig modellnamn: {ny_modell}'
-            }), 400
-        
-        # Skapa en ny lokal AI-identifierare med den valda modellen
-        web_sorterare = WebRemissSorterare()
-        if hasattr(web_sorterare.sorterare.ai_identifierare, 'byt_ollama_modell'):
-            resultat = web_sorterare.sorterare.ai_identifierare.byt_ollama_modell(ny_modell)
+        # Uppdatera ai_config.py
+        import os
+        config_file = 'ai_config.py'
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                content = f.read()
             
-            if resultat:
-                return jsonify({
-                    'success': True,
-                    'meddelande': f'Ollama-modell bytt till: {ny_modell}',
-                    'ny_modell': ny_modell
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'error': f'Kunde inte byta till modell: {ny_modell}'
-                }), 500
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Ollama-modellhantering stöds inte'
-            }), 500
+            # Ersätt OLLAMA_MODEL-värdet
+            import re
+            pattern = r'OLLAMA_MODEL\s*=\s*["\'][^"\']*["\']'
+            replacement = f'OLLAMA_MODEL = "{ny_modell}"'
+            new_content = re.sub(pattern, replacement, content)
+            
+            with open(config_file, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+        
+        # Ladda om AI-identifieraren med den nya modellen
+        try:
+            # Skapa en ny WebRemissSorterare-instans för att ladda om AI-identifieraren
+            global web_sorterare
+            web_sorterare = WebRemissSorterare()
+            logger.info(f"AI-identifierare laddad om med modell: {ny_modell}")
+        except Exception as e:
+            logger.error(f"Fel vid omladdning av AI-identifierare: {e}")
+            # Fortsätt ändå eftersom konfigurationen är uppdaterad
+        
+        return jsonify({
+            'success': True,
+            'meddelande': f'Ollama-modell bytt till: {ny_modell}',
+            'ny_modell': ny_modell
+        })
         
     except Exception as e:
         logger.error(f"Fel vid byte av Ollama-modell: {e}")
