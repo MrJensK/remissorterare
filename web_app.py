@@ -188,9 +188,9 @@ class WebRemissSorterare:
             logger.info(f"Session {session_id}: PDF kopierad till {mål_fil}")
             
             # Skapa .dat-fil
-            if personnummer and remissdatum:
+            if personnummer:
                 self.sorterare.skapa_dat_fil(
-                    verksamhet, personnummer, remissdatum, 
+                    verksamhet, personnummer, remissdatum or "Okänt", 
                     fil_sokvag.name, mål_mapp
                 )
                 logger.info(f"Session {session_id}: .dat-fil skapad")
@@ -248,6 +248,11 @@ web_sorterare = WebRemissSorterare()
 def index():
     """Huvudsida"""
     return render_template('index.html')
+
+@app.route('/remisshantering')
+def remisshantering():
+    """Remisshanteringssida"""
+    return render_template('remisshantering.html')
 
 
 @app.route('/upload', methods=['POST'])
@@ -387,40 +392,6 @@ def api_osakert_remisser():
             'error': str(e)
         }), 500
 
-@app.route('/api/omfördela_remiss', methods=['POST'])
-def api_omfördela_remiss():
-    """API för att omfördela en remiss från osakert till rätt verksamhet"""
-    try:
-        data = request.get_json()
-        pdf_namn = data.get('pdf_namn')
-        ny_verksamhet = data.get('ny_verksamhet')
-        
-        if not pdf_namn or not ny_verksamhet:
-            return jsonify({
-                'success': False,
-                'error': 'Saknar pdf_namn eller ny_verksamhet'
-            }), 400
-        
-        web_sorterare = WebRemissSorterare()
-        resultat = web_sorterare.sorterare.omfördela_remiss(pdf_namn, ny_verksamhet)
-        
-        if resultat:
-            return jsonify({
-                'success': True,
-                'meddelande': f'Remiss {pdf_namn} omfördela till {ny_verksamhet}'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Kunde inte omfördela remissen'
-            }), 500
-            
-    except Exception as e:
-        logger.error(f"Fel vid omfördelningsprocessen: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 @app.route('/api/träna_ml_med_omfördelningsdata', methods=['POST'])
 def api_träna_ml_med_omfördelningsdata():
@@ -925,6 +896,127 @@ def api_byt_ollama_modell():
             'error': str(e)
         }), 500
 
+@app.route('/api/omfördela_remiss', methods=['POST'])
+def api_omfördela_remiss():
+    """API för att omfördela en remiss till annan verksamhet"""
+    try:
+        data = request.get_json()
+        filnamn = data.get('filnamn', '')
+        nuvarande_verksamhet = data.get('nuvarande_verksamhet', '')
+        ny_verksamhet = data.get('ny_verksamhet', '')
+        
+        if not all([filnamn, nuvarande_verksamhet, ny_verksamhet]):
+            return jsonify({
+                'success': False,
+                'error': 'Alla fält måste fyllas i'
+            }), 400
+        
+        # Kontrollera att filen finns
+        nuvarande_mapp = Path('output') / nuvarande_verksamhet
+        ny_mapp = Path('output') / ny_verksamhet
+        
+        if not nuvarande_mapp.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Mapp {nuvarande_verksamhet} finns inte'
+            }), 404
+        
+        if not ny_mapp.exists():
+            ny_mapp.mkdir(parents=True, exist_ok=True)
+        
+        pdf_fil = nuvarande_mapp / filnamn
+        dat_fil = nuvarande_mapp / filnamn.replace('.pdf', '.dat')
+        
+        if not pdf_fil.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Fil {filnamn} finns inte i {nuvarande_verksamhet}'
+            }), 404
+        
+        # Flytta PDF-fil
+        ny_pdf_fil = ny_mapp / filnamn
+        import shutil
+        shutil.move(str(pdf_fil), str(ny_pdf_fil))
+        
+        # Flytta och uppdatera .dat-fil om den finns
+        if dat_fil.exists():
+            ny_dat_fil = ny_mapp / filnamn.replace('.pdf', '.dat')
+            shutil.move(str(dat_fil), str(ny_dat_fil))
+            
+            # Uppdatera verksamheten i .dat-filen
+            web_sorterare.sorterare.uppdatera_dat_fil_verksamhet(str(ny_dat_fil), ny_verksamhet)
+        
+        logger.info(f"Omfördelade {filnamn} från {nuvarande_verksamhet} till {ny_verksamhet}")
+        
+        return jsonify({
+            'success': True,
+            'meddelande': f'Remiss omfördelad från {nuvarande_verksamhet} till {ny_verksamhet}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Fel vid omfördelning av remiss: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/remiss_innehåll/<verksamhet>/<path:filnamn>')
+def api_remiss_innehåll(verksamhet, filnamn):
+    """API för att hämta innehåll från en remiss"""
+    try:
+        verksamhet_mapp = Path('output') / verksamhet
+        pdf_fil = verksamhet_mapp / filnamn
+        
+        if not pdf_fil.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Fil {filnamn} finns inte i {verksamhet}'
+            }), 404
+        
+        # Extrahera text från PDF
+        try:
+            from pdf2image import convert_from_path
+            import pytesseract
+            
+            # Konvertera PDF till bilder
+            images = convert_from_path(pdf_fil, dpi=300)
+            
+            # Extrahera text från alla sidor
+            full_text = ""
+            for i, image in enumerate(images):
+                text = pytesseract.image_to_string(image, lang='swe+eng')
+                full_text += f"\n--- Sida {i+1} ---\n{text}\n"
+            
+            # Läs .dat-fil om den finns
+            dat_fil = pdf_fil.with_suffix('.dat')
+            dat_innehåll = None
+            if dat_fil.exists():
+                with open(dat_fil, 'r', encoding='utf-8') as f:
+                    dat_innehåll = f.read()
+            
+            return jsonify({
+                'success': True,
+                'filnamn': filnamn,
+                'verksamhet': verksamhet,
+                'text': full_text.strip(),
+                'dat_innehåll': dat_innehåll,
+                'antal_sidor': len(images)
+            })
+            
+        except Exception as e:
+            logger.error(f"Fel vid extrahering av text från {filnamn}: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Kunde inte extrahera text: {str(e)}'
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Fel vid hämtning av remissinnehåll: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/download/<path:filename>')
 def download_file(filename):
     """Låter användare ladda ner bearbetade filer"""
@@ -941,6 +1033,117 @@ def api_verksamheter():
         })
     except Exception as e:
         logger.error(f"Fel vid hämtning av verksamheter: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/remisser/<verksamhet>')
+def api_remisser_i_verksamhet(verksamhet):
+    """API för att hämta remisser från en specifik verksamhet"""
+    try:
+        verksamhet_mapp = Path('output') / verksamhet
+        
+        if not verksamhet_mapp.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Verksamhet {verksamhet} finns inte'
+            }), 404
+        
+        remisser = []
+        pdf_filer = list(verksamhet_mapp.glob('*.pdf'))
+        
+        for pdf_fil in pdf_filer:
+            # Hitta motsvarande .dat-fil
+            dat_fil = pdf_fil.with_suffix('.dat')
+            remiss_info = {
+                'filnamn': pdf_fil.name,
+                'sökväg': str(pdf_fil),
+                'storlek': pdf_fil.stat().st_size,
+                'skapad': datetime.fromtimestamp(pdf_fil.stat().st_ctime).strftime('%Y-%m-%d %H:%M:%S'),
+                'modifierad': datetime.fromtimestamp(pdf_fil.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                'personnummer': None,
+                'remissdatum': None
+            }
+            
+            # Läs .dat-fil om den finns
+            if dat_fil.exists():
+                try:
+                    with open(dat_fil, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            if line.startswith('Personnummer:'):
+                                remiss_info['personnummer'] = line.split(':', 1)[1].strip()
+                            elif line.startswith('Remissdatum:'):
+                                remiss_info['remissdatum'] = line.split(':', 1)[1].strip()
+                except Exception as e:
+                    logger.warning(f"Kunde inte läsa .dat-fil {dat_fil}: {e}")
+            
+            remisser.append(remiss_info)
+        
+        # Sortera efter datum (nyast först)
+        remisser.sort(key=lambda x: x['modifierad'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'verksamhet': verksamhet,
+            'remisser': remisser,
+            'antal': len(remisser)
+        })
+        
+    except Exception as e:
+        logger.error(f"Fel vid hämtning av remisser för {verksamhet}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/radera_remiss', methods=['POST'])
+def api_radera_remiss():
+    """API för att radera en remiss"""
+    try:
+        data = request.get_json()
+        filnamn = data.get('filnamn', '')
+        verksamhet = data.get('verksamhet', '')
+        
+        if not all([filnamn, verksamhet]):
+            return jsonify({
+                'success': False,
+                'error': 'Filnamn och verksamhet måste anges'
+            }), 400
+        
+        verksamhet_mapp = Path('output') / verksamhet
+        
+        if not verksamhet_mapp.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Verksamhet {verksamhet} finns inte'
+            }), 404
+        
+        pdf_fil = verksamhet_mapp / filnamn
+        dat_fil = verksamhet_mapp / filnamn.replace('.pdf', '.dat')
+        
+        if not pdf_fil.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Fil {filnamn} finns inte i {verksamhet}'
+            }), 404
+        
+        # Radera PDF-fil
+        pdf_fil.unlink()
+        
+        # Radera .dat-fil om den finns
+        if dat_fil.exists():
+            dat_fil.unlink()
+        
+        logger.info(f"Raderade remiss {filnamn} från {verksamhet}")
+        
+        return jsonify({
+            'success': True,
+            'meddelande': f'Remiss {filnamn} raderad från {verksamhet}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Fel vid radering av remiss: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

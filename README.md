@@ -17,6 +17,11 @@ Ett avancerat Python-program för automatisk hantering av inscannade remisser (P
 - **Omdirigering av osäkra remisser**: Möjlighet att manuellt omfördela och träna modellen
 - **Debug-verktyg**: Steg-för-steg analys av verksamhetsidentifiering
 - **Lokal AI-stöd**: Kör AI-modeller direkt på din maskin utan internetanslutning
+- **Remisshantering**: Komplett hantering av bearbetade remisser med omfördelning och radering
+- **Verksamhetshantering**: Hantera verksamheter och nyckelord via webbgränssnitt
+- **JSON-konfiguration**: Verksamheter lagras i extern JSON-fil för enkel hantering
+- **Remissförhandsvisning**: Se innehållet i remisser direkt i webbläsaren
+- **Ollama-modellval**: Välj mellan installerade Ollama-modeller direkt i gränssnittet
 
 ## 🛠️ Installation
 
@@ -43,6 +48,7 @@ chmod +x install.sh
 - ✅ Valfritt OpenAI-stöd
 - ✅ Skapar mappstruktur och verksamhetsmappar
 - ✅ Konfigurerar AI-inställningar
+- ✅ Skapar verksamheter.json med alla verksamheter
 - ✅ Testar installationen
 - ✅ Skapar startskript
 - ✅ Kontrollerar virtuell miljö vid körning
@@ -170,10 +176,9 @@ python ollama_manager.py set-default mistral:7b-instruct
 ```
 
 #### **Webbgränssnitt:**
-Gå till `/ollama` för en komplett webbgränssnitt för modellhantering:
-- Installera modeller
-- Byt mellan modeller
-- Testa modeller
+Ollama-modellhantering är nu integrerat i huvudgränssnittet:
+- Välj mellan installerade modeller direkt i AI-status
+- Byt modell med ett klick
 - Se status och prestanda
 
 ### Andra lokala AI-modeller
@@ -251,8 +256,9 @@ För att använda OpenAI:
 
 #### **Webbgränssnitt:**
 1. Starta webbapplikationen: `./start_web.sh`
-2. Gå till `/ollama` för modellhantering
-3. Installera, byt och testa olika modeller
+2. Gå till "AI Status och Konfiguration" sektionen
+3. Välj mellan installerade Ollama-modeller i dropdown-menyn
+4. Klicka "Byt Modell" för att växla
 
 #### **Kommandoradsverktyg:**
 ```bash
@@ -276,6 +282,39 @@ python ollama_manager.py set-default mistral:7b-instruct
 - Programmet kontrollerar automatiskt vilka modeller som är installerade
 - Fallback till standardmodell om vald modell saknas
 - Automatisk validering av modellkompatibilitet
+
+### Remisshantering
+
+#### **Komplett remisshantering:**
+1. Starta webbapplikationen: `./start_web.sh`
+2. Klicka på "Remisshantering" i huvudmenyn
+3. Välj verksamhet för att se alla remisser
+4. Klicka på remissnamn för att se innehåll
+5. Omfördela remisser till andra verksamheter
+6. Radera remisser som inte behövs
+
+#### **Funktioner:**
+- **Remisslista**: Se alla remisser med tidsangivelse och storlek
+- **Förhandsvisning**: Klicka på remissnamn för att se fullständig text
+- **Omfördelning**: Flytta remisser mellan verksamheter
+- **Radering**: Ta bort remisser med bekräftelse
+- **Sökning**: Filtrera remisser per verksamhet
+- **Detaljer**: Se personnummer, remissdatum och .dat-fil innehåll
+
+### Verksamhetshantering
+
+#### **Hantera verksamheter och nyckelord:**
+1. Gå till "Verksamhetshantering" sektionen på huvudsidan
+2. Lägg till nya verksamheter med nyckelord
+3. Använd AI-förslag för att föreslå nyckelord
+4. Ta bort verksamheter som inte behövs
+5. Se antal filer per verksamhet
+
+#### **JSON-konfiguration:**
+- Verksamheter lagras i `verksamheter.json`
+- Enkel att redigera och underhålla
+- Automatisk laddning vid start
+- Fallback till inbyggd konfiguration
 
 ### Schemalagd körning
 
@@ -303,10 +342,32 @@ crontab -e
 
 Redigera `config.py` för att anpassa:
 
-- **Verksamheter och nyckelord**: Lägg till eller ändra verksamheter
 - **Tröskelvärden**: Ändra sannolikhetströskel (standard: 70% för AI, 90% för fallback)
 - **OCR-inställningar**: Justera DPI och språk
 - **Mappnamn**: Anpassa mappstruktur
+
+### Verksamhetskonfiguration
+
+Verksamheter och nyckelord lagras nu i `verksamheter.json`:
+
+```json
+{
+  "Ortopedi": [
+    "ortopedi", "ortopedisk", "led", "leder", "knä", "höft", "rygg", "ryggrad",
+    "fraktur", "brott", "artros", "artrit", "reumatism", "reumatoid"
+  ],
+  "Kirurgi": [
+    "kirurgi", "kirurgisk", "operation", "operera", "kirurg", "snitt",
+    "laparoskopi", "endoskopi", "biopsi", "tumör", "cancer", "malign"
+  ]
+}
+```
+
+**Fördelar med JSON-konfiguration:**
+- ✅ Enkel att redigera och underhålla
+- ✅ Kan hanteras via webbgränssnittet
+- ✅ Automatisk laddning vid start
+- ✅ Fallback till inbyggd konfiguration
 
 ### AI-konfiguration
 
@@ -421,11 +482,14 @@ Det nya webbgränssnittet erbjuder:
 - **Realtidsstatus**: Se bearbetningsförloppet live med WebSocket
 - **Statistik**: Översikt över bearbetade filer per verksamhet
 - **AI-status**: Kontrollera AI-modellernas status och konfiguration
-- **Lokal AI-kontroller**: Byt mellan olika lokala AI-modeller
+- **Ollama-modellval**: Välj mellan installerade Ollama-modeller direkt i gränssnittet
 - **Omdirigering**: Hantera osäkra remisser direkt från gränssnittet
 - **Textanalys**: Testa verksamhetsidentifiering med valfri text
 - **Debug-analys**: Steg-för-steg analys av identifieringsprocessen
 - **ML-träning**: Träna modellen direkt från gränssnittet
+- **Remisshantering**: Komplett hantering av bearbetade remisser
+- **Verksamhetshantering**: Hantera verksamheter och nyckelord
+- **Remissförhandsvisning**: Se innehållet i remisser direkt
 - **Responsivt design**: Fungerar på alla enheter
 
 ### Starta webbgränssnittet
@@ -453,6 +517,12 @@ Personnummer: 19850415-1234
 Remissdatum: 2024-01-15
 Skapad: 2024-01-15 14:30:25
 ```
+
+**Förbättringar:**
+- ✅ .dat-filer skapas även om remissdatum saknas
+- ✅ Personnummer är endast krav för .dat-filskapande
+- ✅ Automatisk uppdatering vid omfördelning
+- ✅ Synkronisering med PDF-filer
 
 ### Mappstruktur
 
@@ -564,10 +634,10 @@ Använd debug-verktygen i webbgränssnittet:
 A: Kontrollera att rätt AI_TYPE är vald i ai_config.py och att alla beroenden är installerade.
 
 **Q: Hur byter jag mellan olika AI-modeller?**
-A: Använd "Lokal AI-kontroller" i webbgränssnittet eller ändra LOKAL_AI_MODEL i ai_config.py.
+A: Använd "AI Status och Konfiguration" sektionen i webbgränssnittet för att välja mellan installerade Ollama-modeller.
 
 **Q: Hur installerar jag Ollama-modeller?**
-A: Använd `python ollama_manager.py install <modellnamn>` eller webbgränssnittet på `/ollama`.
+A: Använd `ollama pull <modellnamn>` i terminalen eller installera via Ollama:s webbgränssnitt.
 
 **Q: Vilken Ollama-modell ska jag välja?**
 A: Börja med `mistral:7b-instruct` för bästa balans mellan kvalitet och hastighet.
@@ -584,6 +654,18 @@ A: Kör bara `./install.sh` - det installerar allt automatiskt inklusive AI-stö
 **Q: Vad gör installationsskriptet?**
 A: Det installerar Python 3.12, Tesseract OCR, alla Python-beroenden, AI-bibliotek, skapar mappstruktur och konfigurerar allt automatiskt.
 
+**Q: Hur hanterar jag remisser efter bearbetning?**
+A: Använd "Remisshantering" i huvudmenyn för att se, omfördela eller radera remisser.
+
+**Q: Hur ändrar jag verksamheter och nyckelord?**
+A: Använd "Verksamhetshantering" sektionen på huvudsidan eller redigera `verksamheter.json` direkt.
+
+**Q: Varför skapas inte .dat-filer?**
+A: .dat-filer skapas endast om personnummer hittas. Kontrollera att personnumret är läsbart i PDF:en.
+
+**Q: Hur ser jag innehållet i en remiss?**
+A: Klicka på remissnamnet i remisshanteringssidan för att se fullständig text och information.
+
 ## 📄 Licens
 
 Detta program är utvecklat för intern användning. Se till att följa relevanta riktlinjer för hantering av patientdata.
@@ -595,10 +677,15 @@ Detta program är utvecklat för intern användning. Se till att följa relevant
 - ✅ AI-driven verksamhetsidentifiering
 - ✅ Stöd för lokala AI-modeller
 - ✅ **Ollama-integration** med stöd för 8+ modeller
-- ✅ **Ollama-modellhantering** via webbgränssnitt och kommandoradsverktyg
+- ✅ **Ollama-modellval** direkt i webbgränssnittet
 - ✅ **Automatisk modellvalidering** och fallback
 - ✅ **Förbättrad PDF-konvertering** med Poppler-stöd
 - ✅ **Virtuell miljökontroll** för säker körning
+- ✅ **Komplett remisshantering** med omfördelning och radering
+- ✅ **Verksamhetshantering** via webbgränssnitt
+- ✅ **JSON-konfiguration** för verksamheter
+- ✅ **Remissförhandsvisning** med fullständig text
+- ✅ **Förbättrade .dat-filer** som skapas även utan remissdatum
 - ✅ Omdirigering av osäkra remisser
 - ✅ Förbättrad kontextbaserad analys
 - ✅ Debug-verktyg för felsökning

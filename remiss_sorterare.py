@@ -505,10 +505,10 @@ class RemissSorterare:
             logger.info(f"Kopierade PDF till: {mål_pdf}")
             
             # Skapa .dat-fil
-            if personnummer and remissdatum:
-                self.skapa_dat_fil(verksamhet, personnummer, remissdatum, pdf_namn, mål_mapp)
+            if personnummer:
+                self.skapa_dat_fil(verksamhet, personnummer, remissdatum or "Okänt", pdf_namn, mål_mapp)
             else:
-                logger.warning("Kunde inte skapa .dat-fil - saknar personnummer eller datum")
+                logger.warning("Kunde inte skapa .dat-fil - saknar personnummer")
             
             return True
             
