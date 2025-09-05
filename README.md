@@ -22,6 +22,9 @@ Ett avancerat Python-program för automatisk hantering av inscannade remisser (P
 - **JSON-konfiguration**: Verksamheter lagras i extern JSON-fil för enkel hantering
 - **Remissförhandsvisning**: Se innehållet i remisser direkt i webbläsaren
 - **Ollama-modellval**: Välj mellan installerade Ollama-modeller direkt i gränssnittet
+- **Dynamisk verksamhetsladdning**: Omdirigeringslistan uppdateras automatiskt från verksamheter.json
+- **Klickbara filnamn**: Klicka på PDF-filnamn för att läsa innehåll i både osakert-listan och remisshantering
+- **Förbättrad osakert-hantering**: Visar personnummer och remissdatum direkt i tabellen
 
 ## 🛠️ Installation
 
@@ -300,6 +303,26 @@ python ollama_manager.py set-default mistral:7b-instruct
 - **Radering**: Ta bort remisser med bekräftelse
 - **Sökning**: Filtrera remisser per verksamhet
 - **Detaljer**: Se personnummer, remissdatum och .dat-fil innehåll
+- **Klickbara filnamn**: PDF-ikon och klickbar länk för att läsa innehåll
+- **Modal-funktionalitet**: Fullständig textvisning i popup-fönster
+
+### Osakert-hantering
+
+#### **Hantera osäkra remisser:**
+1. Gå till "Omdirigering av osäkra remisser" sektionen på huvudsidan
+2. Se alla remisser som behöver manuell granskning
+3. Klicka på PDF-filnamn för att läsa fullständigt innehåll
+4. Välj rätt verksamhet från uppdaterad lista (från verksamheter.json)
+5. Omdirigera remisser med ett klick
+6. Använd AI-förslag för att få hjälp med klassificering
+7. Träna ML-modellen med omfördelningsdata
+
+#### **Förbättringar:**
+- **Dynamisk verksamhetsladdning**: Listan uppdateras automatiskt från verksamheter.json
+- **Klickbara filnamn**: PDF-ikon och klickbar länk för att läsa innehåll
+- **Förbättrad visning**: Visar personnummer och remissdatum direkt i tabellen
+- **Modal-funktionalitet**: Fullständig textvisning i popup-fönster
+- **AI-förslag**: Få förslag på verksamhet baserat på PDF-innehåll
 
 ### Verksamhetshantering
 
@@ -315,6 +338,7 @@ python ollama_manager.py set-default mistral:7b-instruct
 - Enkel att redigera och underhålla
 - Automatisk laddning vid start
 - Fallback till inbyggd konfiguration
+- **Dynamisk uppdatering**: Ändringar i JSON-filen syns omedelbart i gränssnittet
 
 ### Schemalagd körning
 
@@ -490,6 +514,10 @@ Det nya webbgränssnittet erbjuder:
 - **Remisshantering**: Komplett hantering av bearbetade remisser
 - **Verksamhetshantering**: Hantera verksamheter och nyckelord
 - **Remissförhandsvisning**: Se innehållet i remisser direkt
+- **Osakert-hantering**: Förbättrad hantering av osäkra remisser
+- **Dynamisk verksamhetsladdning**: Automatisk uppdatering från verksamheter.json
+- **Klickbara filnamn**: PDF-ikon och klickbar länk för att läsa innehåll
+- **Modal-funktionalitet**: Fullständig textvisning i popup-fönster
 - **Responsivt design**: Fungerar på alla enheter
 
 ### Starta webbgränssnittet
@@ -664,7 +692,16 @@ A: Använd "Verksamhetshantering" sektionen på huvudsidan eller redigera `verks
 A: .dat-filer skapas endast om personnummer hittas. Kontrollera att personnumret är läsbart i PDF:en.
 
 **Q: Hur ser jag innehållet i en remiss?**
-A: Klicka på remissnamnet i remisshanteringssidan för att se fullständig text och information.
+A: Klicka på remissnamnet i remisshanteringssidan eller osakert-listan för att se fullständig text och information.
+
+**Q: Varför uppdateras inte verksamhetslistan i osakert-omdirigering?**
+A: Verksamhetslistan hämtas nu dynamiskt från verksamheter.json. Kontrollera att filen är korrekt formaterad och att webbservern har startats om efter ändringar.
+
+**Q: Kan jag klicka på filnamn för att läsa PDF-innehåll?**
+A: Ja, både i remisshantering och osakert-listan kan du klicka på PDF-filnamnet för att se fullständigt innehåll i en popup.
+
+**Q: Hur fungerar dynamisk verksamhetsladdning?**
+A: Omdirigeringslistan hämtar verksamheter från /api/verksamheter som läser från verksamheter.json. Ändringar syns omedelbart utan omstart.
 
 ## 📄 Licens
 
@@ -686,6 +723,10 @@ Detta program är utvecklat för intern användning. Se till att följa relevant
 - ✅ **JSON-konfiguration** för verksamheter
 - ✅ **Remissförhandsvisning** med fullständig text
 - ✅ **Förbättrade .dat-filer** som skapas även utan remissdatum
+- ✅ **Dynamisk verksamhetsladdning** i osakert-omdirigering
+- ✅ **Klickbara filnamn** för att läsa PDF-innehåll
+- ✅ **Förbättrad osakert-hantering** med personnummer och remissdatum
+- ✅ **Modal-funktionalitet** för fullständig textvisning
 - ✅ Omdirigering av osäkra remisser
 - ✅ Förbättrad kontextbaserad analys
 - ✅ Debug-verktyg för felsökning

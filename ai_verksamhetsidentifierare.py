@@ -180,11 +180,11 @@ Motivering: [kort förklaring av varför denna verksamhet valdes]
             
             # Validera sannolikhet
             if not (0 <= sannolikhet <= 100):
-                sannolikhet = 75.0  # Standardvärde om AI inte gav en giltig sannolikhet
+                sannolikhet = 5.0  # Standardvärde om AI inte gav en giltig sannolikhet
             elif sannolikhet == 0.0 and verksamhet != "Okänd":
                 # Om AI identifierade en verksamhet men gav 0% sannolikhet, 
                 # betyder det att AI:n är osäker - sätt till 50% istället
-                sannolikhet = 50.0
+                sannolikhet = 10.0
                 logger.info(f"AI gav 0% sannolikhet för '{verksamhet}' - sätter till 50% (osäker)")
             
             logger.info(f"AI identifierade: {verksamhet} med {sannolikhet}% sannolikhet")

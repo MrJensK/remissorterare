@@ -314,6 +314,14 @@ class RemissSorterare:
                 if verksamhet != "Okänd" and sannolikhet > 70:
                     logger.info(f"AI-identifiering: {verksamhet} (sannolikhet: {sannolikhet:.1f}%)")
                     return verksamhet, sannolikhet
+                elif verksamhet != "Okänd" and sannolikhet >= 50:
+                    # AI identifierade en verksamhet men med låg sannolikhet
+                    # Kontrollera om det finns tydliga nyckelord som stödjer detta
+                    if self._kontrollera_nyckelordsmatchning(text, verksamhet):
+                        logger.info(f"AI-identifiering bekräftad av nyckelord: {verksamhet} (sannolikhet: {sannolikhet:.1f}% → 85%)")
+                        return verksamhet, 85.0
+                    else:
+                        logger.info("AI-identifiering gav låg sannolikhet utan nyckelordsstöd, använder fallback")
                 else:
                     logger.info("AI-identifiering gav låg sannolikhet, använder fallback")
             except Exception as e:
@@ -432,6 +440,36 @@ class RemissSorterare:
             return "osakert", högsta_poäng
         
         return bästa_verksamhet, högsta_poäng
+    
+    def _kontrollera_nyckelordsmatchning(self, text: str, verksamhet: str) -> bool:
+        """
+        Kontrollerar om det finns tydliga nyckelord i texten som stödjer verksamhetsidentifieringen
+        
+        Args:
+            text: Remisstext att analysera
+            verksamhet: Verksamhet som AI:n identifierade
+            
+        Returns:
+            True om det finns tydliga nyckelord som stödjer verksamheten
+        """
+        if verksamhet not in self.verksamheter:
+            return False
+            
+        text_lower = text.lower()
+        nyckelord = self.verksamheter[verksamhet]
+        
+        # Räkna antal matchande nyckelord
+        matchande_nyckelord = []
+        for nyckel in nyckelord:
+            if nyckel.lower() in text_lower:
+                matchande_nyckelord.append(nyckel)
+        
+        # Om det finns minst ett matchande nyckelord, anses det som stöd
+        if matchande_nyckelord:
+            logger.info(f"Nyckelordsstöd för {verksamhet}: {matchande_nyckelord}")
+            return True
+            
+        return False
     
     def skapa_dat_fil(self, verksamhet: str, personnummer: str, remissdatum: str, 
                      pdf_namn: str, mapp: Path):

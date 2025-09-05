@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, send_file
 from flask_socketio import SocketIO, emit, join_room
 import uuid
 
@@ -955,6 +955,34 @@ def api_omfördela_remiss():
         
     except Exception as e:
         logger.error(f"Fel vid omfördelning av remiss: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/remiss_pdf/<verksamhet>/<path:filnamn>')
+def api_remiss_pdf(verksamhet, filnamn):
+    """API för att servera PDF-filer direkt"""
+    try:
+        verksamhet_mapp = Path('output') / verksamhet
+        pdf_fil = verksamhet_mapp / filnamn
+        
+        if not pdf_fil.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Fil {filnamn} finns inte i {verksamhet}'
+            }), 404
+        
+        # Returnera PDF-filen direkt
+        return send_file(
+            pdf_fil,
+            as_attachment=False,
+            mimetype='application/pdf',
+            download_name=filnamn
+        )
+        
+    except Exception as e:
+        logger.error(f"Fel vid hämtning av PDF {filnamn}: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

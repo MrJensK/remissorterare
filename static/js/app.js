@@ -287,67 +287,256 @@ function displayOsakertRemisser(remisser) {
         return;
     }
     
-    let html = `
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>PDF-fil</th>
-                        <th>Storlek</th>
-                        <th>Skapad</th>
-                        <th>Verksamhet</th>
-                        <th>Åtgärd</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-    
-    remisser.forEach(remiss => {
-        const verksamheter = Object.keys(VERKSAMHETER);
-        const verksamhetOptions = verksamheter.map(v => 
-            `<option value="${v}">${v}</option>`
-        ).join('');
-        
-        html += `
-            <tr>
-                <td>
-                    <strong>${remiss.pdf_namn}</strong>
-                    ${remiss.dat_fil ? `<br><small class="text-muted">${remiss.dat_fil.substring(0, 100)}...</small>` : ''}
-                </td>
-                <td>${formatFileSize(remiss.storlek)}</td>
-                <td>${remiss.skapad}</td>
-                <td>
-                    <select class="form-select form-select-sm" id="verksamhet-${remiss.pdf_namn.replace(/[^a-zA-Z0-9]/g, '_')}">
-                        <option value="">Välj verksamhet...</option>
-                        ${verksamhetOptions}
-                    </select>
-                </td>
-                <td>
-                    <div class="btn-group" role="group">
-                        <button class="btn btn-sm btn-primary" onclick="omfördelaRemiss('${remiss.pdf_namn}', '${remiss.pdf_namn.replace(/[^a-zA-Z0-9]/g, '_')}')">
-                            <i class="fas fa-arrow-right me-1"></i>Omdirigera
-                        </button>
-                        <button class="btn btn-sm btn-info" onclick="fåAIFörslagFrånPDF('${remiss.pdf_namn}')" title="Få AI-förslag på verksamhet">
-                            <i class="fas fa-robot me-1"></i>AI-förslag
+    // Hämta verksamheter från API:et
+    fetch('/api/verksamheter')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const verksamheter = Object.keys(data.verksamheter);
+                const verksamhetOptions = verksamheter.map(v => 
+                    `<option value="${v}">${v}</option>`
+                ).join('');
+                
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>PDF-fil</th>
+                                    <th>Storlek</th>
+                                    <th>Skapad</th>
+                                    <th>Verksamhet</th>
+                                    <th>Åtgärd</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                remisser.forEach(remiss => {
+                    // Extrahera personnummer och remissdatum från .dat-fil
+                    let personnummer = '';
+                    let remissdatum = '';
+                    if (remiss.dat_fil) {
+                        const lines = remiss.dat_fil.split('\n');
+                        lines.forEach(line => {
+                            if (line.startsWith('Personnummer:')) {
+                                const parts = line.split(':');
+                                personnummer = parts.length > 1 ? parts[1].trim() : '';
+                            } else if (line.startsWith('Remissdatum:')) {
+                                const parts = line.split(':');
+                                remissdatum = parts.length > 1 ? parts[1].trim() : '';
+                            }
+                        });
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td>
+                                <a href="#" onclick="visaOsakertRemissInnehåll('${remiss.pdf_namn}')" class="text-decoration-none">
+                                    <i class="fas fa-file-pdf me-2 text-danger"></i>
+                                    <strong>${remiss.pdf_namn}</strong>
+                                </a>
+                                ${personnummer ? `<br><small class="text-muted">Personnummer: ${personnummer}</small>` : ''}
+                                ${remissdatum ? `<br><small class="text-muted">Remissdatum: ${remissdatum}</small>` : ''}
+                            </td>
+                            <td>${formatFileSize(remiss.storlek)}</td>
+                            <td>${remiss.skapad}</td>
+                            <td>
+                                <select class="form-select form-select-sm" id="verksamhet-${remiss.pdf_namn.replace(/[^a-zA-Z0-9]/g, '_')}">
+                                    <option value="">Välj verksamhet...</option>
+                                    ${verksamhetOptions}
+                                </select>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-primary" onclick="omfördelaRemiss('${remiss.pdf_namn}', '${remiss.pdf_namn.replace(/[^a-zA-Z0-9]/g, '_')}')">
+                                        <i class="fas fa-arrow-right me-1"></i>Omdirigera
+                                    </button>
+                                    <button class="btn btn-sm btn-info" onclick="fåAIFörslagFrånPDF('${remiss.pdf_namn}')" title="Få AI-förslag på verksamhet">
+                                        <i class="fas fa-robot me-1"></i>AI-förslag
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="tränaMLMedOmfördelningsdata()">
+                            <i class="fas fa-brain me-2"></i>Träna ML med omfördelningsdata
                         </button>
                     </div>
-                </td>
-            </tr>
-        `;
-    });
-    
-    html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="mt-3">
-            <button class="btn btn-success" onclick="tränaMLMedOmfördelningsdata()">
-                <i class="fas fa-brain me-2"></i>Träna ML med omfördelningsdata
-            </button>
+                `;
+                
+                osakertContent.innerHTML = html;
+            } else {
+                osakertContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Fel vid hämtning av verksamheter: ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Fel vid hämtning av verksamheter:', error);
+            osakertContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Fel vid hämtning av verksamheter: ${error.message}
+                </div>
+            `;
+        });
+}
+
+// Visa innehåll i osakert-remiss
+function visaOsakertRemissInnehåll(filnamn) {
+    // Skapa modal för att visa innehåll
+    const modalHtml = `
+        <div class="modal fade" id="osakertRemissModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Remiss: ${filnamn}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary active" id="pdf-tab" onclick="visaPDFTab()">
+                                    <i class="fas fa-file-pdf me-2"></i>PDF
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="text-tab" onclick="visaTextTab()">
+                                    <i class="fas fa-file-text me-2"></i>Text
+                                </button>
+                            </div>
+                            <a href="/api/remiss_pdf/osakert/${encodeURIComponent(filnamn)}" target="_blank" class="btn btn-success">
+                                <i class="fas fa-download me-2"></i>Ladda ner PDF
+                            </a>
+                        </div>
+                        <div id="osakert-remiss-innehåll">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Laddar...</span>
+                                </div>
+                                <p class="mt-2">Laddar remissinnehåll...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Stäng</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
     
-    osakertContent.innerHTML = html;
+    // Ta bort befintlig modal om den finns
+    const existingModal = document.getElementById('osakertRemissModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Lägg till ny modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Visa modal
+    const modal = new bootstrap.Modal(document.getElementById('osakertRemissModal'));
+    modal.show();
+    
+    // Visa PDF som standard
+    visaPDFTab();
+    
+    // Hämta text-innehåll från API:et för text-fliken
+    fetch(`/api/remiss_innehåll/osakert/${encodeURIComponent(filnamn)}`)
+        .then(response => response.json())
+        .then(data => {
+            window.osakertRemissData = data; // Spara data globalt för text-fliken
+        })
+        .catch(error => {
+            console.error('Fel vid hämtning av remissinnehåll:', error);
+            window.osakertRemissData = { success: false, error: 'Fel vid hämtning av remissinnehåll' };
+        });
+}
+
+// Visa PDF-flik
+function visaPDFTab() {
+    const pdfTab = document.getElementById('pdf-tab');
+    const textTab = document.getElementById('text-tab');
+    const innehåll = document.getElementById('osakert-remiss-innehåll');
+    
+    // Uppdatera knappar
+    pdfTab.classList.add('active');
+    pdfTab.classList.remove('btn-outline-primary');
+    pdfTab.classList.add('btn-primary');
+    textTab.classList.remove('active');
+    textTab.classList.remove('btn-secondary');
+    textTab.classList.add('btn-outline-secondary');
+    
+    // Visa PDF
+    const filnamn = document.querySelector('#osakertRemissModal .modal-title').textContent.replace('Remiss: ', '');
+    innehåll.innerHTML = `
+        <div style="height: 600px;">
+            <iframe src="/api/remiss_pdf/osakert/${encodeURIComponent(filnamn)}" 
+                    width="100%" 
+                    height="100%" 
+                    style="border: none;">
+                <p>Din webbläsare stöder inte iframe. <a href="/api/remiss_pdf/osakert/${encodeURIComponent(filnamn)}" target="_blank">Klicka här för att öppna PDF:en</a></p>
+            </iframe>
+        </div>
+    `;
+}
+
+// Visa text-flik
+function visaTextTab() {
+    const pdfTab = document.getElementById('pdf-tab');
+    const textTab = document.getElementById('text-tab');
+    const innehåll = document.getElementById('osakert-remiss-innehåll');
+    
+    // Uppdatera knappar
+    textTab.classList.add('active');
+    textTab.classList.remove('btn-outline-secondary');
+    textTab.classList.add('btn-secondary');
+    pdfTab.classList.remove('active');
+    pdfTab.classList.remove('btn-primary');
+    pdfTab.classList.add('btn-outline-primary');
+    
+    // Visa text
+    const data = window.osakertRemissData;
+    if (data && data.success) {
+        innehåll.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Remissinformation</h6>
+                    <table class="table table-sm">
+                        <tr><td><strong>Filnamn:</strong></td><td>${data.filnamn}</td></tr>
+                        <tr><td><strong>Verksamhet:</strong></td><td>${data.verksamhet}</td></tr>
+                        <tr><td><strong>Antal sidor:</strong></td><td>${data.antal_sidor}</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>.dat-fil innehåll</h6>
+                    <pre class="bg-light p-3 rounded">${data.dat_innehåll || 'Ingen .dat-fil hittades'}</pre>
+                </div>
+            </div>
+            <hr>
+            <h6>Extraherad text</h6>
+            <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
+                <pre style="white-space: pre-wrap; font-size: 0.9em;">${data.text}</pre>
+            </div>
+        `;
+    } else {
+        innehåll.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                ${data ? data.error : 'Fel vid hämtning av remissinnehåll'}
+            </div>
+        `;
+    }
 }
 
 // Visa statistik
@@ -400,7 +589,8 @@ function omfördelaRemiss(pdfNamn, verksamhetId) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            pdf_namn: pdfNamn,
+            filnamn: pdfNamn,
+            nuvarande_verksamhet: 'osakert',
             ny_verksamhet: nyVerksamhet
         })
     })

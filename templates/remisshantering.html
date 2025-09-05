@@ -309,59 +309,121 @@
             
             const innehåll = document.getElementById('remiss-innehåll');
             innehåll.innerHTML = `
-                <div class="text-center">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Laddar...</span>
+                <div class="d-flex justify-content-between mb-3">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary active" id="pdf-tab-remiss" onclick="visaPDFTabRemiss()">
+                            <i class="fas fa-file-pdf me-2"></i>PDF
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="text-tab-remiss" onclick="visaTextTabRemiss()">
+                            <i class="fas fa-file-text me-2"></i>Text
+                        </button>
                     </div>
-                    <p class="mt-2">Laddar remissinnehåll...</p>
+                    <a href="/api/remiss_pdf/${encodeURIComponent(verksamhet)}/${encodeURIComponent(filnamn)}" target="_blank" class="btn btn-success">
+                        <i class="fas fa-download me-2"></i>Ladda ner PDF
+                    </a>
+                </div>
+                <div id="remiss-innehåll-content">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Laddar...</span>
+                        </div>
+                        <p class="mt-2">Laddar remissinnehåll...</p>
+                    </div>
                 </div>
             `;
             
             modal.show();
             
+            // Visa PDF som standard
+            visaPDFTabRemiss();
+            
+            // Hämta text-innehåll från API:et för text-fliken
             fetch(`/api/remiss_innehåll/${encodeURIComponent(verksamhet)}/${encodeURIComponent(filnamn)}`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        innehåll.innerHTML = `
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h6>Remissinformation</h6>
-                                    <table class="table table-sm">
-                                        <tr><td><strong>Filnamn:</strong></td><td>${data.filnamn}</td></tr>
-                                        <tr><td><strong>Verksamhet:</strong></td><td>${data.verksamhet}</td></tr>
-                                        <tr><td><strong>Antal sidor:</strong></td><td>${data.antal_sidor}</td></tr>
-                                    </table>
-                                </div>
-                                <div class="col-md-6">
-                                    <h6>.dat-fil innehåll</h6>
-                                    <pre class="bg-light p-3 rounded">${data.dat_innehåll || 'Ingen .dat-fil hittades'}</pre>
-                                </div>
-                            </div>
-                            <hr>
-                            <h6>Extraherad text</h6>
-                            <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
-                                <pre style="white-space: pre-wrap; font-size: 0.9em;">${data.text}</pre>
-                            </div>
-                        `;
-                    } else {
-                        innehåll.innerHTML = `
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                ${data.error}
-                            </div>
-                        `;
-                    }
+                    window.remissData = data; // Spara data globalt för text-fliken
                 })
                 .catch(error => {
                     console.error('Fel vid hämtning av remissinnehåll:', error);
-                    innehåll.innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Fel vid hämtning av remissinnehåll
-                        </div>
-                    `;
+                    window.remissData = { success: false, error: 'Fel vid hämtning av remissinnehåll' };
                 });
+        }
+        
+        // Visa PDF-flik för remisshantering
+        function visaPDFTabRemiss() {
+            const pdfTab = document.getElementById('pdf-tab-remiss');
+            const textTab = document.getElementById('text-tab-remiss');
+            const innehåll = document.getElementById('remiss-innehåll-content');
+            
+            // Uppdatera knappar
+            pdfTab.classList.add('active');
+            pdfTab.classList.remove('btn-outline-primary');
+            pdfTab.classList.add('btn-primary');
+            textTab.classList.remove('active');
+            textTab.classList.remove('btn-secondary');
+            textTab.classList.add('btn-outline-secondary');
+            
+            // Visa PDF
+            const filnamn = aktuellRemiss.filnamn;
+            const verksamhet = aktuellRemiss.verksamhet;
+            innehåll.innerHTML = `
+                <div style="height: 600px;">
+                    <iframe src="/api/remiss_pdf/${encodeURIComponent(verksamhet)}/${encodeURIComponent(filnamn)}" 
+                            width="100%" 
+                            height="100%" 
+                            style="border: none;">
+                        <p>Din webbläsare stöder inte iframe. <a href="/api/remiss_pdf/${encodeURIComponent(verksamhet)}/${encodeURIComponent(filnamn)}" target="_blank">Klicka här för att öppna PDF:en</a></p>
+                    </iframe>
+                </div>
+            `;
+        }
+        
+        // Visa text-flik för remisshantering
+        function visaTextTabRemiss() {
+            const pdfTab = document.getElementById('pdf-tab-remiss');
+            const textTab = document.getElementById('text-tab-remiss');
+            const innehåll = document.getElementById('remiss-innehåll-content');
+            
+            // Uppdatera knappar
+            textTab.classList.add('active');
+            textTab.classList.remove('btn-outline-secondary');
+            textTab.classList.add('btn-secondary');
+            pdfTab.classList.remove('active');
+            pdfTab.classList.remove('btn-primary');
+            pdfTab.classList.add('btn-outline-primary');
+            
+            // Visa text
+            const data = window.remissData;
+            if (data && data.success) {
+                innehåll.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Remissinformation</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>Filnamn:</strong></td><td>${data.filnamn}</td></tr>
+                                <tr><td><strong>Verksamhet:</strong></td><td>${data.verksamhet}</td></tr>
+                                <tr><td><strong>Antal sidor:</strong></td><td>${data.antal_sidor}</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>.dat-fil innehåll</h6>
+                            <pre class="bg-light p-3 rounded">${data.dat_innehåll || 'Ingen .dat-fil hittades'}</pre>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Extraherad text</h6>
+                    <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
+                        <pre style="white-space: pre-wrap; font-size: 0.9em;">${data.text}</pre>
+                    </div>
+                `;
+            } else {
+                innehåll.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ${data ? data.error : 'Fel vid hämtning av remissinnehåll'}
+                    </div>
+                `;
+            }
         }
 
         function omfördelaRemiss(filnamn, nuvarandeVerksamhet) {

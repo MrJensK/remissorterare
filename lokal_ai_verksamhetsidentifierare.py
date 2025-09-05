@@ -460,15 +460,21 @@ VIKTIGA REGLER:
 2. Sök efter fraser som "remiss till", "mottagare:", "till verksamhet:", "till klinik:", etc.
 3. Analysera innehållet noggrant för att förstå vad remissen handlar om
 4. Välj den mest lämpliga verksamheten baserat på innehållet
-5. Sätt sannolikheten till MINST 70% om du är säker på din identifiering
-6. Sätt sannolikheten till 0% ENDAST om du verkligen inte kan identifiera verksamheten
+5. Om du hittar tydliga nyckelord som matchar en verksamhet, sätt sannolikheten till MINST 80%
+6. Om du är mycket säker på identifieringen, sätt sannolikheten till 90-95%
+7. Sätt sannolikheten till 0% ENDAST om du verkligen inte kan identifiera verksamheten
+
+EXEMPEL PÅ NYCKELORD-MATCHNING:
+- "obesitasmottagning" → Specialistmedicin (80-90%)
+- "kardiologi" → Kardiologi (90-95%)
+- "ortopedi" → Ortopedi (90-95%)
 
 Remisstext:
 {text[:1000]}
 
 Svara EXAKT i följande format:
 Verksamhet: [verksamhetsnamn]
-Sannolikhet: [70-100]% (om säker) eller 0% (om osäker)
+Sannolikhet: [80-95]% (om säker) eller 0% (om osäker)
 Motivering: [kort förklaring av varför denna verksamhet valdes]"""
     
     def _skapa_openai_prompt(self, text: str) -> str:
@@ -528,6 +534,11 @@ Motivering: [kort förklaring]"""
                 # betyder det att AI:n är osäker - sätt till 50% istället
                 sannolikhet = 50.0
                 logger.info(f"AI gav 0% sannolikhet för '{verksamhet}' - sätter till 50% (osäker)")
+            elif sannolikhet < 50.0 and verksamhet != "Okänd":
+                # Om AI identifierade en verksamhet men gav mycket låg sannolikhet,
+                # höj den till minst 50% eftersom AI:n ändå identifierade verksamheten
+                logger.info(f"AI gav låg sannolikhet ({sannolikhet}%) för '{verksamhet}' - höjer till 50%")
+                sannolikhet = 50.0
             
             return verksamhet, sannolikhet
             
